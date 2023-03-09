@@ -1112,7 +1112,7 @@ int main()
 }
 
 /* shared library (python) entry */
-PYBIND11_MODULE(libJSB_interface, m)
+PYBIND11_MODULE(libJSB_Interface, m)
 {
   /* special structures */
 
