@@ -41,7 +41,7 @@ bool set_winds(vector<vector<double>> &windVals, vector<int> &windTiming, double
   try
   {
     double windTimingVal = windTiming[windState]; // trying to do this to catch vector out of range exception - not working
-    if ((simTime > windTimingVal) && windState < (windTiming.size() - 1))
+    if ((simTime > windTimingVal) && windState < (int)(windTiming.size() - 1))
     {
       windState++;
     }
@@ -63,7 +63,7 @@ bool set_tuning_cmd(vector<double> &cmdVals, vector<int> &cmdTiming, double simT
   try
   {
     double cmdTimingVal = cmdTiming[cmdState]; // trying to do this to catch vector out of range exception - not working
-    if ((simTime > cmdTimingVal) && cmdState < (cmdTiming.size() - 1))
+    if ((simTime > cmdTimingVal) && cmdState < (int)(cmdTiming.size() - 1))
     {
       cmdState++;
     }
@@ -114,7 +114,7 @@ void AutoPilot::runFromPython(py::object pyObj_iterations)
  * @param[in] None
  * @return JSONPaylod JSON payload of the updated aircraft state
  */
-void AutoPilot::run(int iterations)
+void AutoPilot::run(int iterations = 5)
 {
   for (int iter = 0; iter < iterations; iter++)
   {
@@ -236,13 +236,11 @@ void AutoPilot::initializeFDMFromPython()
 void AutoPilot::initializeFDM()
 {
 
-  std::string aircraftDirLocation = tulsa::dirPath.path + "/cpp_source/jsbsim/";
-
   // assign the proper working path to the FDM
-  FDM.SetRootDir(SGPath::fromUtf8(aircraftDirLocation));
-  FDM.SetAircraftPath(SGPath::fromUtf8(aircraftDirLocation + "aircraft/"));
-  FDM.SetEnginePath(SGPath::fromUtf8(aircraftDirLocation + "engine/"));
-  FDM.SetSystemsPath(SGPath::fromUtf8(aircraftDirLocation + "systems/"));
+  FDM.SetRootDir(SGPath::fromUtf8(tulsa::dirPath.path));
+  FDM.SetAircraftPath(SGPath::fromUtf8(tulsa::dirPath.path + "/jsbsim/aircraft/"));
+  FDM.SetEnginePath(SGPath::fromUtf8(tulsa::dirPath.path + "/jsbsim/engine/"));
+  FDM.SetSystemsPath(SGPath::fromUtf8(tulsa::dirPath.path + "/jsbsim/systems/"));
 
   // load the model, now that the correct path has been established
   assert(FDM.LoadModel("c172x"));
@@ -337,6 +335,7 @@ std::string AutoPilot::getAircraftStateJSON()
 double AutoPilot::blend_alpha_cmd(pid &bestRatePID, pid &gammaPID, double alphaCmd, bool gammaToBR) // Call this right before switch-off - calculate new integral for BR controller
 {
   double integral;
+
   if (gammaToBR && (int(alphaCmd) == maneuverConfig.at(LEFT_MANEUVER).get<int>() || int(alphaCmd) == maneuverConfig.at(RIGHT_MANEUVER).get<int>()))
   {
     integral = 2.8 / bestRatePID.ki;
@@ -349,6 +348,7 @@ double AutoPilot::blend_alpha_cmd(pid &bestRatePID, pid &gammaPID, double alphaC
   {
     double integral = (bestRatePID.integ - integral) / 2;
   }
+
   return integral;
 }
 
@@ -361,7 +361,7 @@ void AutoPilot::set_throttle_pos()
 
   bool throttleOn = 0;
 
-  if ((globalAircraftState.vc <= maxRateSpeed + throttleOffset - throttleHyster) && ~throttleOn)
+  if ((globalAircraftState.vc <= maxRateSpeed + throttleOffset - throttleHyster) && !throttleOn)
   {
     throttleOn = 1;
   }
@@ -1071,29 +1071,45 @@ std::string JSBAircraftState::getExtendedJSBSimState()
 
 }
 
+void configureManeuverConfig()
+{
+  maneuverConfig[IDLE] = -1;
+  maneuverConfig[LEFT_MANEUVER] = 0;
+  maneuverConfig[RIGHT_MANEUVER] = 1;
+  maneuverConfig[STRAIGHT_MANEUVER] = 2;
+}
+
 /* executable entry */
-// int main()
-// {
-//   AutoPilot autopilot;
+int main()
+{
+  AutoPilot autopilot;
+  configureManeuverConfig();
 
-//   std::ifstream aircraftStateFile("cfg/aircraftState.json");
-//   std::stringstream aircraftStateBuffer;
+  std::ifstream aircraftStateFile(tulsa::dirPath.path + tulsa::AIRCRAFT_STATE_PATH);
+  std::stringstream aircraftStateBuffer;
 
-//   aircraftStateBuffer << aircraftStateFile.rdbuf();
-//   json jsonObject = json::parse(aircraftStateBuffer.str());
+    if (!aircraftStateFile)
+    {
+        std::cout << "ERROR: INVALID JSON FILE PATH FOR AIRCRAFT INPUT STATE: " << tulsa::dirPath.path + tulsa::AIRCRAFT_STATE_PATH << std::endl;
+        return EXIT_FAILURE;
+    }
 
-//   autopilot.initializeAircraftState(jsonObject.dump());
-//   autopilot.initializeFDM();
+  aircraftStateBuffer << aircraftStateFile.rdbuf();
+  json jsonObject = json::parse(aircraftStateBuffer.str());
 
-//   for (int i = 0; i < 10; i++)
-//   {
-//     autopilot.run();
-//     std::cout << "globalAircraftState.getJSON()\n\n"
-//               << globalAircraftState.getJSON() << std::endl;
-//   }
+  globalAircraftState.writeWithJSON(jsonObject["JSB"].dump());
+  autopilot.initializeFDM();
 
-//   return EXIT_SUCCESS;
-// }
+  for (int i = 0; i < 10; i++)
+  {
+    autopilot.run();
+    std::cout << "globalAircraftState.getJSON()\n\n" << globalAircraftState.getJSON() << std::endl;
+  }
+
+  std::cout << "JSBSim_Interface.cpp\nmain() complete.\n";
+
+  return EXIT_SUCCESS;
+}
 
 /* shared library (python) entry */
 PYBIND11_MODULE(libJSB_interface, m)
