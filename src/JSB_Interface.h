@@ -24,6 +24,7 @@
 #define MAGNETO_ON_CMD 3
 #define ENGINE_START_CMD 1
 #define STANDARD_RUN_ITERATIONS 5 // ::run() was previously a static 5 iterations. This is here for executable debugging if necessary.
+#define C172_BEST_RATE 75
 
 /* physical constants */
 #define RAD2DEG 57.295779

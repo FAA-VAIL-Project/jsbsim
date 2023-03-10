@@ -84,36 +84,12 @@
                 <z> 24.0 </z>
             </location>
         </pointmass>
-        <pointmass name="PASSENGER 1">
-            <weight unit="LBS">130.0</weight>
-            <location unit="IN">
-                <x> 60.0 </x>
-                <y> -14.0 </y>
-                <z> 24.0 </z>
-            </location>
-        </pointmass>
-        <pointmass name="PASSENGER 2">
-            <weight unit="LBS">106.0</weight>
-            <location unit="IN">
-                <x> 60.0 </x>
-                <y> 14.0 </y>
-                <z> 24.0 </z>
-            </location>
-        </pointmass>
         <pointmass name="LUGGAGE">
-            <weight unit="LBS">120.0</weight>
+            <weight unit="LBS">20.0</weight>
             <location unit="IN">
                 <x> 95.0 </x>
                 <y>  0.0 </y>
                 <z> 24.0 </z>
-            </location>
-        </pointmass>
-        <pointmass name="PesticideBomb">
-            <weight unit="LBS">80.0</weight>
-            <location unit="IN">
-                <x>  41.0 </x>
-                <y> 144.0 </y>
-                <z> 36.0 </z>
             </location>
         </pointmass>
     </mass_balance>
@@ -283,25 +259,6 @@
       </channel>
     </system>
 
-    <system name="Fuel content in volume">
-        <fcs_function name="propulsion/tank[0]/contents-volume-gal">
-            <function>
-                <quotient>
-                    <p> propulsion/tank[0]/contents-lbs </p>
-                    <p> propulsion/tank[0]/density-lbs_per_gal </p>
-                </quotient>
-            </function>
-        </fcs_function>
-        <fcs_function name="propulsion/tank[1]/contents-volume-gal">
-            <function>
-                <quotient>
-                    <p> propulsion/tank[1]/contents-lbs </p>
-                    <p> propulsion/tank[1]/density-lbs_per_gal </p>
-                </quotient>
-            </function>
-        </fcs_function>
-    </system>
-
     <system name="Mixture control">
       <!--
       E = 1.3 * Mixture * P_std / P_amb
@@ -355,17 +312,18 @@
             <aerosurface_scale name="fcs/elevator-control">
                 <input>fcs/pitch-trim-sum</input>
                 <range>
-                    <min>-28</min>
-                    <max> 23</max>
+                    <min>-20</min>
+                    <max> 20</max>
                 </range>
                 <gain>0.01745</gain>
             </aerosurface_scale>
 
             <actuator name="fcs/elevator-actuator">
               <input> fcs/elevator-control </input>
-              <lag> 60 </lag>
-              <bias> 0.002 </bias>
-              <hysteresis_width> 0.05 </hysteresis_width>
+        <!--  <lag> 60 </lag>
+              <bias> 0.002 </bias> -->
+              <hysteresis> 0.05 </hysteresis>
+              <rate_limit> 1.57 </rate_limit>
               <clipto>
                 <!-- +/- 20 degrees -->
                 <min> -0.34 </min>
@@ -379,8 +337,8 @@
         <channel name="Roll">
 
             <summer name="fcs/roll-trim-sum">
-                <input>ap/aileron_cmd</input>
-                <input>ap/roll-cmd-norm-output</input> 
+                <input>ap/aileron_cmd</input> 
+                <input>ap/roll-cmd-norm-output</input>
                 <input>fcs/aileron-cmd-norm</input>
                 <input>fcs/roll-trim-cmd-norm</input>
                 <clipto>
@@ -1209,67 +1167,4 @@
         </axis>
 
     </aerodynamics>
-<!--
-    <input port="1137"/>
--->
-
-    <output name="JSBout172B.csv" type="CSV" rate="10">
-        <rates> ON             </rates>
-        <velocities> ON        </velocities>
-        <position> ON          </position>
-        <atmosphere> OFF       </atmosphere>
-        <fcs> ON               </fcs>
-        <ground_reactions> OFF </ground_reactions>
-        <propulsion> ON       </propulsion>
-        <simulation> ON        </simulation>
-        <massprops> ON        </massprops>
-        <forces> OFF           </forces>
-        <moments> OFF          </moments>
-        <aerosurfaces> OFF      </aerosurfaces>
-        <property> position/vrp-gc-latitude_deg </property>
-        <property> position/vrp-longitude_deg   </property>
-        <property> position/vrp-radius-ft       </property>
-        <function name="velocities/pi-deg_sec">
-          <todegrees> <p> velocities/pi-rad_sec </p> </todegrees>
-        </function>
-    </output>
-
-<!---
-    <output name="localhost" type="SOCKET" port="1138" rate="20">
-        <simulation> OFF </simulation>
-        <atmosphere> OFF </atmosphere>
-        <massprops> OFF</massprops>
-        <rates> OFF </rates>
-        <velocities> OFF </velocities>
-        <forces> OFF </forces>
-        <moments> OFF </moments>
-        <position> OFF </position>
-        <propulsion> OFF </propulsion>
-        <aerosurfaces> OFF </aerosurfaces>
-        <fcs> OFF </fcs>
-        <ground_reactions> OFF </ground_reactions>
-        <coefficients> OFF </coefficients>
-        <property> position/h-agl-ft </property>
-        <property> velocities/vc-kts </property>
-        <property> attitude/phi-rad </property>
-        <property> fcs/attitude/sensor/phi-rad </property>
-    </output>
-
-    <output name="localhost" type="SOCKET" port="1140" rate="40">
-        <simulation> OFF </simulation>
-        <atmosphere> OFF </atmosphere>
-        <massprops> OFF</massprops>
-        <aerosurfaces> OFF </aerosurfaces>
-        <rates> OFF </rates>
-        <velocities> ON </velocities>
-        <forces> OFF </forces>
-        <moments> OFF </moments>
-        <position> OFF </position>
-        <propulsion> OFF </propulsion>
-        <fcs> OFF </fcs>
-        <ground_reactions> OFF </ground_reactions>
-        <coefficients> OFF </coefficients>
-    </output> 
-    -->
 </fdm_config>
-

@@ -27,12 +27,12 @@ int isNeg(double num)
 
 bool sameSign(float n1, float n2)
 {
-  return n1 * n2 > 0.0f;
+  return n1 * n2 > (float)0.0;
 }
 
 bool sameSign(double n1, double n2)
 {
-  return n1 * n2 > 0.0d;
+  return n1 * n2 > (double)0.0;
 }
 
 // Sets winds for simulation
@@ -211,15 +211,15 @@ double AutoPilot::get_alpha_cmd(double gamCmd, bool mission, bool gammaSwitch)
   }
   else if (!gammaSwitch)
   {
-    alphaCmd = bestRateControllerAlpha.calculate(globalAircraftState.bestRate, globalAircraftState.vc, globalAircraftState.simDt, true);
+    alphaCmd = bestRateControllerAlpha.calculate(C172_BEST_RATE, globalAircraftState.vc, globalAircraftState.simDt, true);
   }
 
-  if (globalAircraftState.vc < (globalAircraftState.bestRate - 20) && !gammaSwitch) // going from best rate to gamma controller
+  if (globalAircraftState.vc < (C172_BEST_RATE - 20) && !gammaSwitch) // going from best rate to gamma controller
   {
     gammaSwitch = true;
     // gammaController.integ = blend_alpha_cmd(bestRateControllerAlpha, gammaController, alphaCmd, 0);
   }
-  else if (globalAircraftState.vc > globalAircraftState.bestRate && gammaSwitch) // going from gamma to best rate controller
+  else if (globalAircraftState.vc > C172_BEST_RATE && gammaSwitch) // going from gamma to best rate controller
   {
     gammaSwitch = false;
     bestRateControllerAlpha.integ = blend_alpha_cmd(bestRateControllerAlpha, gammaController, globalAircraftState.apMode, 1);
@@ -290,7 +290,6 @@ void AutoPilot::initializeFDM()
   altSetpoint = globalAircraftState.alt;
   simTime = FDM.GetSimTime();
   globalAircraftState.simT = simTime;
-  globalAircraftState.bestRate = 75;
 
   /* CONTROLLER CONFIGURATION */
 
@@ -310,7 +309,7 @@ void AutoPilot::initializeFDM()
 
   set_throttle_pos();
 
-  if (globalAircraftState.vc >= globalAircraftState.bestRate)
+  if (globalAircraftState.vc >= C172_BEST_RATE)
   {
     gammaSwitch = false;
   }
@@ -354,7 +353,7 @@ double AutoPilot::blend_alpha_cmd(pid &bestRatePID, pid &gammaPID, double alphaC
 
 void AutoPilot::set_throttle_pos()
 {
-  int maxRateSpeed = globalAircraftState.bestRate; // knots
+  int maxRateSpeed = C172_BEST_RATE; // knots
   // int maxAirspeed = 125;                           // knots usused
   int throttleOffset = 15; // knots above bestRate where the throttle will go to 100%
   int throttleHyster = 5;  // To go 100%, vc <= bestRate + throttleOffset - throttleHyster. For 0%, vc >= bestRate + throttleOffset + throttleHyster
