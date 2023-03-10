@@ -23,13 +23,15 @@
 #define MODE_1 1 // TODO figure out what the parameter (int) mode doees for JSB
 #define MAGNETO_ON_CMD 3
 #define ENGINE_START_CMD 1
+#define ENGINE_RUNNING_CMD -1
+#define ENGINE_CUTOFF_CMD 0
 #define STANDARD_RUN_ITERATIONS 5 // ::run() was previously a static 5 iterations. This is here for executable debugging if necessary.
 #define C172_BEST_RATE 75
 
 /* physical constants */
 #define RAD2DEG 57.295779
 #define FPS2KNOT 0.592484
-#define KNOT2FPS 1/FPS2KNOT
+#define KNOT2FPS 1 / FPS2KNOT
 #define FOOT2NMI 0.000165
 #define EARADNMI 3443.930886 // Earth radius in nmi
 #define DEG2RAD 1 / RAD2DEG

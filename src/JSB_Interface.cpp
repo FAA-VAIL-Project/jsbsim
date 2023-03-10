@@ -271,6 +271,7 @@ void AutoPilot::initializeFDM()
   // ------constants----------
   FDM.SetPropertyValue("propulsion/magneto_cmd", MAGNETO_ON_CMD);
   FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
+  FDM.SetPropertyValue("propulsion/set-running", ENGINE_RUNNING_CMD);
 
   // configure the aircraft's weight distribution
   int initFuel = (FDM.GetPropertyValue("propulsion/tank[0]/contents-lbs") + FDM.GetPropertyValue("propulsion/tank[1]/contents-lbs"));
@@ -638,6 +639,7 @@ void JSBAircraftState::writeWithJSON(std::string JSONPayload)
 
   /* velocites */
   vc = jsonObject.at("vc");
+  vt_kts = jsonObject.at("vt");
   uB = jsonObject.at("uB");
   vB = jsonObject.at("vB");
   wB = jsonObject.at("wB");
@@ -662,7 +664,6 @@ void JSBAircraftState::writeWithJSON(std::string JSONPayload)
   isSteady = jsonObject.at("isSteady");
 
   nzG = jsonObject.at("nzG");
-  vt_kts = jsonObject.at("vt");
 
   /* overwrite JSB's values */
   FDM.Hold(); // pause the physics engine
@@ -670,7 +671,7 @@ void JSBAircraftState::writeWithJSON(std::string JSONPayload)
   FDM.SetPropertyValue("ic/lat-gc-deg", initLat);
   FDM.SetPropertyValue("ic/long-gc-deg", initLon);
   FDM.SetPropertyValue("ic/h-agl-ft", alt);
-  FDM.SetPropertyValue("ic/vc-kts", vc);
+  // FDM.SetPropertyValue("ic/vc-kts", vc);
   FDM.SetPropertyValue("ic/phi-deg", phiB);
   FDM.SetPropertyValue("ic/theta-deg", thetaB);
   FDM.SetPropertyValue("ic/psi-true-deg", psiB);
@@ -701,19 +702,17 @@ void JSBAircraftState::writeWithJSON(std::string JSONPayload)
   FDM.SetPropertyValue("accelerations/Nz", nzG);
   FDM.SetPropertyValue("velocities/vt-fps", vt_kts * KNOT2FPS);
 
-
   /* resume the physics engine */
   FDM.ResetToInitialConditions(MODE_1);
 
-  /* reenable engine if it is disabled */
-  if (FDM.GetPropertyValue("propulsion/active_engine") == -1)
-  {
-    std::cout << "engine is off, turning on\n";
-    FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
-  }
+  /* reenable engine */
+  FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
+  FDM.SetPropertyValue("propulsion/set-running", ENGINE_RUNNING_CMD);
+  FDM.SetPropertyValue("propulsion/cutoff_cmd", ENGINE_CUTOFF_CMD);
 
   assert(FDM.RunIC());
   assert(FDM.Run());
+  
   FDM.Resume();
 }
 
@@ -1020,7 +1019,6 @@ std::string JSBAircraftState::getExtendedJSBSimState()
   jsonObject["propulsion/pt-lbs_sqft"] = FDM.GetPropertyValue("propulsion/pt-lbs_sqft");
   jsonObject["propulsion/refuel"] = FDM.GetPropertyValue("propulsion/refuel");
   jsonObject["propulsion/set-running"] = FDM.GetPropertyValue("propulsion/set-running");
-  jsonObject["propulsion/starter_cmd"] = FDM.GetPropertyValue("propulsion/starter_cmd");
   jsonObject["propulsion/starter_cmd"] = FDM.GetPropertyValue("propulsion/starter_cmd");
   jsonObject["propulsion/tat-c"] = FDM.GetPropertyValue("propulsion/tat-c");
   jsonObject["propulsion/tat-r"] = FDM.GetPropertyValue("propulsion/tat-r");
