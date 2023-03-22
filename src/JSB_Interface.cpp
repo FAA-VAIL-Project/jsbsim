@@ -238,9 +238,9 @@ void AutoPilot::initializeFDM()
 
   // assign the proper working path to the FDM
   FDM.SetRootDir(SGPath::fromUtf8(tulsa::dirPath.path));
-  FDM.SetAircraftPath(SGPath::fromUtf8(tulsa::dirPath.path + "/jsbsim/aircraft/"));
-  FDM.SetEnginePath(SGPath::fromUtf8(tulsa::dirPath.path + "/jsbsim/engine/"));
-  FDM.SetSystemsPath(SGPath::fromUtf8(tulsa::dirPath.path + "/jsbsim/systems/"));
+  FDM.SetAircraftPath(SGPath::fromUtf8(tulsa::dirPath.path + "/tu_jsbsim/aircraft/"));
+  FDM.SetEnginePath(SGPath::fromUtf8(tulsa::dirPath.path + "/tu_jsbsim/engine/"));
+  FDM.SetSystemsPath(SGPath::fromUtf8(tulsa::dirPath.path + "/tu_jsbsim/systems/"));
 
   // load the model, now that the correct path has been established
   assert(FDM.LoadModel("c172x"));
