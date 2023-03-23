@@ -110,6 +110,7 @@ double vA;
 double altSetpoint;
 double simTime;
 bool mission;
+int throttleOn = 0;
 
 bool realtime; // Sets if FDM runs in realtime or not. Giving "--realtime" argv will set this to true
 bool suspend;

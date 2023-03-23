@@ -359,8 +359,6 @@ void AutoPilot::set_throttle_pos()
   int throttleOffset = 15; // knots above bestRate where the throttle will go to 100%
   int throttleHyster = 5;  // To go 100%, vc <= bestRate + throttleOffset - throttleHyster. For 0%, vc >= bestRate + throttleOffset + throttleHyster
 
-  bool throttleOn = 0;
-
   if ((globalAircraftState.vc <= maxRateSpeed + throttleOffset - throttleHyster) && !throttleOn)
   {
     throttleOn = 1;
@@ -638,7 +636,7 @@ void JSBAircraftState::writeWithJSON(std::string JSONPayload)
   alt = jsonObject.at("alt");
 
   /* velocites */
-  vc = jsonObject.at("vc");
+  // vc = jsonObject.at("vc");
   vt_kts = jsonObject.at("vt");
   uB = jsonObject.at("uB");
   vB = jsonObject.at("vB");
@@ -685,7 +683,7 @@ void JSBAircraftState::writeWithJSON(std::string JSONPayload)
   FDM.SetPropertyValue("position/lat-gc-deg", lat);
   FDM.SetPropertyValue("position/long-gc-deg", lon);
   FDM.SetPropertyValue("position/h-agl-ft", alt);
-  FDM.SetPropertyValue("velocities/vc-kts", vc);
+  // FDM.SetPropertyValue("velocities/vc-kts", vc);
   FDM.SetPropertyValue("velocities/u-fps", uB);
   FDM.SetPropertyValue("velocities/v-fps", vB);
   FDM.SetPropertyValue("velocities/w-fps", wB);
@@ -725,33 +723,53 @@ std::string JSBAircraftState::getJSON()
 {
   assert(this == &globalAircraftState); // this line is to assure that we're referencing the correct aircraft state, and not an unconstructed object.
 
-  // update the json object and send the string to python
+  // update the json object and send the payload to python
 
-  /* locally scoped variables */
+  // position
   jsonObject["initLat"] = initLat;
   jsonObject["initLon"] = initLon;
   jsonObject["initAlt"] = initAlt;
   jsonObject["lat"] = lat;
   jsonObject["lon"] = lon;
   jsonObject["alt"] = alt;
+
+  // airspeeds
   jsonObject["vc"] = vc;
   jsonObject["vt"] = vt_kts;
-  jsonObject["phiB"] = phiB;
+  
+  // attitude
   jsonObject["thetaB"] = thetaB;
   jsonObject["psiB"] = psiB;
-  jsonObject["chi"] = chi;
   jsonObject["uB"] = uB;
   jsonObject["vB"] = vB;
   jsonObject["wB"] = wB;
   jsonObject["p"] = p;
   jsonObject["q"] = q;
   jsonObject["r"] = r;
-  jsonObject["alpha"] = alpha;
-  jsonObject["beta"] = beta;
-  jsonObject["gamma"] = gamma;
   jsonObject["weight"] = weight;
   jsonObject["isSteady"] = isSteady;
   jsonObject["nzG"] = nzG;
+
+  jsonObject["phiB"] = phiB;
+  jsonObject["phiCmd"] = phiCmd;
+
+  jsonObject["chi"] = chi;
+  jsonObject["crsCmd"] = crsCmd;
+
+  jsonObject["alpha"] = alpha;
+  jsonObject["alphaCmd"] = alphaCmd;
+
+  jsonObject["beta"] = beta;
+  jsonObject["betaCmd"] = betaCmd;
+
+  jsonObject["gamma"] = gamma;
+  jsonObject["gamCmd"] = gamCmd;
+
+  jsonObject["throttleOn"] = throttleOn;
+
+  jsonObject["starter_cmd"] = FDM.GetPropertyValue("propulsion/starter_cmd");
+  jsonObject["total-fuel-lbs"] = FDM.GetPropertyValue("propulsion/total-fuel-lbs");
+  jsonObject["set-running"] = FDM.GetPropertyValue("propulsion/set-running");
 
   return jsonObject.dump();
 }
