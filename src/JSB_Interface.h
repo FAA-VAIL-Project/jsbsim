@@ -26,7 +26,7 @@
 #define ENGINE_RUNNING_CMD -1
 #define ENGINE_CUTOFF_CMD 0
 #define STANDARD_RUN_ITERATIONS 5 // ::run() was previously a static 5 iterations. This is here for executable debugging if necessary.
-#define C172_BEST_RATE 75
+#define C172_BEST_RATE 75.0
 
 /* physical constants */
 #define RAD2DEG 57.295779
@@ -97,73 +97,53 @@ using json = nlohmann::json;
 /* function prototypes */
 void sim_nsleep(long);
 int isNeg(double num);
-bool set_winds(vector<vector<double>> &windVals, vector<int> &windTiming, double simTime);
-bool set_tuning_cmd(vector<double> &cmdVals, vector<int> &cmdTiming, double simTime, double &tuningVar);
+bool set_winds(vector<vector<double>> &windVals, vector<int> &windTiming);
+bool set_tuning_cmd(vector<double> &cmdVals, vector<int> &cmdTiming, double &tuningVar);
+double unwrap(double);
 
 /* GLOBAL SCOPED VARIABLES */
-JSBSim::FGFDMExec FDM; // https://jsbsim-team.github.io/jsbsim/classJSBSim_1_1FGFDMExec.html
-double crsCmd, phiCmd, deltRCmd, alphaCmd, deltACmd, deltECmd, gamCmd, betaCmd;
-bool gammaSwitch;
-double phi;
-double nzG;
-double vA;
-double altSetpoint;
-double simTime;
-bool mission;
-int throttleOn = 0;
+JSBSim::FGFDMExec FDM;          // Flight Executive. Read more information here. https://jsbsim-team.github.io/jsbsim/classJSBSim_1_1FGFDMExec.html
+// json maneuverConfig;            // JSON object of enumerated maneuvers. This determines key value pairs between -1: "Idle", 0: "Left", etc. JSON because it is also used in python.
+std::map<std::string, int> maneuverConfig;
+bool gammaSwitch;               // gamma switch for best rate or 0 degree flight path angle
+uint16_t simStep;               // Current iteration of the simulation.
+double simTime;                 // simulation time, in seconds.
+float sleep_nseconds;           // real-time sleep option, in seconds.
+bool mission;                   // 
+bool realtime;                  // Sets if FDM runs in realtime or not.
 
-bool realtime; // Sets if FDM runs in realtime or not. Giving "--realtime" argv will set this to true
-bool suspend;
-bool catalog;
-bool nohighlight;
-double simulation_rate;
-bool override_sim_rate;
-bool tryOptions;
-bool stepResult; // Keeps track of result of each simulation step. If false, simulation ended or crashed
-double frame_duration;
-double sleep_nseconds;
-
-double end_time; // Time in seconds that the simulation will run for (simulation time)
-double sleep_period;
-int simStep;   // Tracks number of steps in simulation
-int windState; // Disturbance winds change as sim time progresses - this keeps track of which wind values should be used
-int cmdState;
+/* wrapping */
 double prevAngleWrap;
 int tWrapped;
 
-SGPath RootDir; // Variable declarations from original JSBSim Main file. Used when executing command line arguments
-SGPath ScriptName;
-string AircraftName;
-SGPath ResetName;
-vector<string> LogOutputName;
-vector<SGPath> LogDirectiveName;
-vector<string> CommandLineProperties;
-vector<double> CommandLinePropertyValues;
-
-// JSON object of enumerated maneuvers.
-json maneuverConfig;
+/* winds */
+int windState;                  // Disturbance winds change as sim time progresses - this keeps track of which wind values should be used
+int cmdState;
 
 // Class used to keep track of aircraft state. Member value reset is handled by calling the "update_readonly" function in main after resetting the simulation/
 class JSBAircraftState
 {
-
 public:
     /* state values */
     double initLat, initLon, initAlt;
     double latPairs[2], lonPairs[2], altPairs[2]; // Pairs are needed to calculate XYZ euclidean distance from origin. First item in each pair is origin lat/lon/alt.
+    double crsCmd, phiCmd, deltRCmd, alphaCmd, deltACmd, deltECmd, gamCmd, betaCmd;
     double lat, lon, alt;
     double pn, pe, pd, horDist;
     double phiB, thetaB, psiB, thetaI, psiI, chi, gamma; //"B" suffixes denote body frame, "I" suffixes denote inertial frame. i.e. psiI is the direction the aircraft is in relative to the origin.
     double uB, vB, wB;
     double vc, vt_kts;                               // Body frame velocities
     double p, q, r;
-    double alpha, initAlpha, beta, nzG;
+    double alpha, initAlpha, beta;
     double weight;
     double vA, bestRate; // max maneuvering speed, function of weight and best rate of climb speed
     double simDt;
     double simT;
     int apMode;
     bool isSteady = false;
+    double nzG;
+    int throttleOn = 0;
+    
     vector<double> inertialVector; // Vector that holds inertial frame data. Was set up as a vector for passing back to main, but it doesn't get passed anymore. Not really necessary to have it as a vector.
 
     json jsonObject;
@@ -182,7 +162,6 @@ public:
     // Updates the current state (globalAircraftState) of the aircraft
     void update_readonly_properties(void);
 
-    double unwrap(double);
     void get_inertial_vector(double (&lat)[2], double (&lon)[2], double (&alt)[2], vector<double> &vectorFromOrigin);
 
     py::object getExtendedJSBSimStateFromPython(void);
@@ -220,6 +199,7 @@ private:
     /* data */
 public:
 
+    /* controllers */
     pid betaController;          // takes in commanded beta, actual beta, and returns a rudder command.
     pid crsController;           // takes in commanded course, actual course, and returns a roll command
     pid phiController;           // takes in commanded roll, actual roll, and returns an aileron deflection angle command
@@ -229,11 +209,7 @@ public:
     pid bestRateControllerAlpha; // takes in commanded airspeed (this will be preset), actual airspeed, and returns a commanded angle of attack in degrees.
     pid bestRateControllernZG;   // takes in commanded airspeed (this will be preset), actual airspeed, and returns a commanded nZ in Gs.
 
-    /* aircraft state */
-    void initializeAircraftStateFromPython(py::object);
-    void initializeAircraftState(std::string);
-
-    /* flight dynamics model */
+    /* flight dynamics model initialization */
     void initializeFDMFromPython();
     void initializeFDM();
 
@@ -251,13 +227,11 @@ public:
 
     /* control */
     double G_limit(void);
-    double get_alpha_cmd(double, bool, bool);
-    double blend_alpha_cmd(pid &bestRatePID, pid &gammaPID, double alphaCmd, bool gammaToBR);
-    void configure_jsbsim();
+    double get_alpha_cmd(double);
+    double blend_alpha_cmd(double alphaCmd, bool gammaToBR);
     void set_throttle_pos();
 
     // returns the global aircraft state internal to JSB side
-    // py::object getAircraftStatePointerFromPython(void);
     JSBAircraftState* getAircraftStatePointerFromPython(void);
 
     void ResetToInitialConditionsFromPython(int);

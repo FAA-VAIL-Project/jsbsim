@@ -36,7 +36,7 @@ bool sameSign(double n1, double n2)
 }
 
 // Sets winds for simulation
-bool set_winds(vector<vector<double>> &windVals, vector<int> &windTiming, double simTime)
+bool set_winds(vector<vector<double>> &windVals, vector<int> &windTiming)
 {
   try
   {
@@ -58,23 +58,50 @@ bool set_winds(vector<vector<double>> &windVals, vector<int> &windTiming, double
 }
 
 // sets value for given tuning command variable - function varies value over time
-bool set_tuning_cmd(vector<double> &cmdVals, vector<int> &cmdTiming, double simTime, double &tuningVar)
+bool set_tuning_cmd(vector<double> &cmdVals, vector<int> &cmdTiming, double &tuningVar)
 {
-  try
+
+  double cmdTimingVal = cmdTiming[cmdState]; // trying to do this to catch vector out of range exception - not working
+  if ((simTime > cmdTimingVal) && cmdState < (int)(cmdTiming.size() - 1))
   {
-    double cmdTimingVal = cmdTiming[cmdState]; // trying to do this to catch vector out of range exception - not working
-    if ((simTime > cmdTimingVal) && cmdState < (int)(cmdTiming.size() - 1))
-    {
-      cmdState++;
-    }
+    cmdState++;
   }
-  catch (const std::exception &e)
-  {
-    std::cout << "error occurred: " << e.what() << std::endl;
-    return 0;
-  }
+
   tuningVar = cmdVals[cmdState];
   return 1;
+}
+
+double unwrap(double newAng) // PID controller for course freaks out when angle gets wrapped. Need to unwrap angle for course controller ONLY. JSBSim needs it to be wrapped to work properly
+{
+
+  if (std::isnan(prevAngleWrap)) // catch first run when prev angle is uninstantiated
+  {
+    prevAngleWrap = newAng;
+  }
+
+  double angDiff = (prevAngleWrap - newAng);
+  double wrappedAng = newAng;
+
+  if (angDiff < 0 && abs(angDiff) > 350) // we wrapped from 0 to 360
+  {
+    tWrapped--;
+  }
+  else if (angDiff > 0 && abs(angDiff) > 350) // we wrapped from 360 to 0
+  {
+    tWrapped++;
+  }
+
+  if (tWrapped > 0)
+  {
+    wrappedAng = newAng + (360 * tWrapped);
+  }
+  else if (tWrapped < 0)
+  {
+    wrappedAng = -(360 - newAng) + (360 * (tWrapped + 1));
+  }
+  prevAngleWrap = newAng;
+
+  return wrappedAng;
 }
 
 /* autopilot */
@@ -89,7 +116,11 @@ void AutoPilot::writeManeuverConfigFromPython(py::object pyObj_maneuverConfigPay
 
 void AutoPilot::writeManeuverConfig(std::string maneuverConfigPayload)
 {
-  maneuverConfig = json::parse(maneuverConfigPayload);
+  json maneuverConfigJSON = json::parse(maneuverConfigPayload);
+  maneuverConfig.emplace(std::make_pair(IDLE, maneuverConfigJSON[IDLE]));
+  maneuverConfig.emplace(std::make_pair(LEFT_MANEUVER, maneuverConfigJSON[LEFT_MANEUVER]));
+  maneuverConfig.emplace(std::make_pair(RIGHT_MANEUVER, maneuverConfigJSON[RIGHT_MANEUVER]));
+  maneuverConfig.emplace(std::make_pair(STRAIGHT_MANEUVER, maneuverConfigJSON[STRAIGHT_MANEUVER]));
   return;
 }
 
@@ -118,12 +149,11 @@ void AutoPilot::run(int iterations = 5)
 {
   for (int iter = 0; iter < iterations; iter++)
   {
-    // run FDM in AP mode
-
     if (realtime)
     {
       sim_nsleep(sleep_nseconds); // Allows visualization in FG to run in realtime.
     }
+
     simTime = FDM.GetSimTime();
     globalAircraftState.simT = simTime;
     // winds removed for now, will need to add in new functions on the AutoPilot.cpp file for python manipulation
@@ -139,55 +169,55 @@ void AutoPilot::run(int iterations = 5)
     globalAircraftState.update_readonly_properties(); // Updates elements of AircraftState instance.
 
     // waypoint follow
-    if (globalAircraftState.apMode == maneuverConfig.at(IDLE).get<int>())
+    if (globalAircraftState.apMode == maneuverConfig[IDLE])
     {
       mission = true;
-      crsCmd = globalAircraftState.chi; // hold current course
-      phiCmd = crsController.calculate(crsCmd, globalAircraftState.chi, globalAircraftState.simDt, false);
-      gamCmd = 0.0;
+      globalAircraftState.crsCmd = globalAircraftState.chi; // hold current course
+      globalAircraftState.phiCmd = crsController.calculate(globalAircraftState.crsCmd, globalAircraftState.chi, globalAircraftState.simDt, false);
+      globalAircraftState.gamCmd = 0.0;
     }
-    else if (globalAircraftState.apMode == maneuverConfig.at(LEFT_MANEUVER).get<int>())
+    else if (globalAircraftState.apMode == maneuverConfig[LEFT_MANEUVER])
     {
       mission = false;
-      phiCmd = -35.0;
-      gamCmd = 0;
+      globalAircraftState.phiCmd = -35.0;
+      globalAircraftState.gamCmd = 0;
     }
-    else if (globalAircraftState.apMode == maneuverConfig.at(RIGHT_MANEUVER).get<int>())
+    else if (globalAircraftState.apMode == maneuverConfig[RIGHT_MANEUVER])
     {
       mission = false;
-      phiCmd = 35.0;
-      gamCmd = 0;
+      globalAircraftState.phiCmd = 35.0;
+      globalAircraftState.gamCmd = 0;
     }
-    else if (globalAircraftState.apMode == maneuverConfig.at(STRAIGHT_MANEUVER).get<int>())
+    else if (globalAircraftState.apMode == maneuverConfig[STRAIGHT_MANEUVER])
     {
       mission = false;
-      phiCmd = 0.0;
-      gamCmd = 0;
+      globalAircraftState.phiCmd = 0.0;
+      globalAircraftState.gamCmd = 0;
     }
 
-    betaCmd = 0.0;
-    deltRCmd = betaController.calculate(betaCmd, globalAircraftState.beta, globalAircraftState.simDt, false);
+    globalAircraftState.betaCmd = 0.0;
+    globalAircraftState.deltRCmd = betaController.calculate(globalAircraftState.betaCmd, globalAircraftState.beta, globalAircraftState.simDt, false);
 
     set_throttle_pos();
 
-    deltACmd = phiController.calculate(phiCmd, globalAircraftState.phiB, globalAircraftState.simDt, false);
+    globalAircraftState.deltACmd = phiController.calculate(globalAircraftState.phiCmd, globalAircraftState.phiB, globalAircraftState.simDt, false);
 
-    alphaCmd = get_alpha_cmd(gamCmd, mission, gammaSwitch);
-    deltECmd = alphaController.calculate(alphaCmd, globalAircraftState.alpha, globalAircraftState.simDt, false);
+    globalAircraftState.alphaCmd = get_alpha_cmd(globalAircraftState.gamCmd);
+    globalAircraftState.deltECmd = alphaController.calculate(globalAircraftState.alphaCmd, globalAircraftState.alpha, globalAircraftState.simDt, false);
 
     alphaController.overSpd = G_limit();
     if (globalAircraftState.vA < globalAircraftState.vc) // if KCAS greater than maneuvering speed, limit control surface command
     {
       // double test = globalAircraftState.vc - globalAircraftState.vA; unused
       double clampG = abs((-0.000082 * pow((globalAircraftState.vc - globalAircraftState.vA), 2)) + (0.01071 * (globalAircraftState.vc - globalAircraftState.vA)) - 0.35); // double clampG = abs(0.133267 * log(1200 * (globalAircraftState.vc - globalAircraftState.vA) + 20) - 1.51);
-      deltECmd = isNeg(deltECmd) * std::min(clampG, abs(deltECmd));
+      globalAircraftState.deltECmd = isNeg(globalAircraftState.deltECmd) * std::min(clampG, abs(globalAircraftState.deltECmd));
     }
 
     //****STORING EXTERNAL VALUES IN IC REGISTERS - NEED TO CHANGE THIS WHEN WE QUIT INSTANTIATING NEW JSBSIM EXEC EACH RUN!!****
 
-    FDM.SetPropertyValue("fcs/rudder-cmd-norm", deltRCmd);
-    FDM.SetPropertyValue("fcs/aileron-cmd-norm", deltACmd);
-    FDM.SetPropertyValue("fcs/elevator-cmd-norm", deltECmd);
+    FDM.SetPropertyValue("fcs/rudder-cmd-norm", globalAircraftState.deltRCmd);
+    FDM.SetPropertyValue("fcs/aileron-cmd-norm", globalAircraftState.deltACmd);
+    FDM.SetPropertyValue("fcs/elevator-cmd-norm", globalAircraftState.deltECmd);
 
     // double kpoWatch = bestRateControllerAlpha.kpO; unused
 
@@ -201,17 +231,17 @@ void AutoPilot::run(int iterations = 5)
   }
 }
 
-double AutoPilot::get_alpha_cmd(double gamCmd, bool mission, bool gammaSwitch)
+double AutoPilot::get_alpha_cmd(double gamCmd)
 {
-  double alphaCmd;
+  double newAlphaCmd;
 
   if (gammaSwitch || mission)
   {
-    alphaCmd = gammaController.calculate(gamCmd, globalAircraftState.gamma, globalAircraftState.simDt, false);
+    newAlphaCmd = gammaController.calculate(gamCmd, globalAircraftState.gamma, globalAircraftState.simDt, false);
   }
   else if (!gammaSwitch)
   {
-    alphaCmd = bestRateControllerAlpha.calculate(C172_BEST_RATE, globalAircraftState.vc, globalAircraftState.simDt, true);
+    newAlphaCmd = bestRateControllerAlpha.calculate(C172_BEST_RATE, globalAircraftState.vc, globalAircraftState.simDt, true);
   }
 
   if (globalAircraftState.vc < (C172_BEST_RATE - 20) && !gammaSwitch) // going from best rate to gamma controller
@@ -222,9 +252,10 @@ double AutoPilot::get_alpha_cmd(double gamCmd, bool mission, bool gammaSwitch)
   else if (globalAircraftState.vc > C172_BEST_RATE && gammaSwitch) // going from gamma to best rate controller
   {
     gammaSwitch = false;
-    bestRateControllerAlpha.integ = blend_alpha_cmd(bestRateControllerAlpha, gammaController, globalAircraftState.apMode, 1);
+    bestRateControllerAlpha.integ = blend_alpha_cmd(globalAircraftState.apMode, true);
   }
-  return alphaCmd;
+
+  return newAlphaCmd;
 }
 
 void AutoPilot::initializeFDMFromPython()
@@ -244,7 +275,6 @@ void AutoPilot::initializeFDM()
 
   // load the model, now that the correct path has been established
   assert(FDM.LoadModel("c172x"));
-  configure_jsbsim();
 
   //================ Set ICs =====================
 
@@ -286,9 +316,8 @@ void AutoPilot::initializeFDM()
   // Initial run, sets stepResult to true if successful. Main while loop will not run if it remains false.
   assert(FDM.Run());
 
-  simStep = 0; // reset simStep
+  simStep = 0;
   globalAircraftState.update_readonly_properties();
-  altSetpoint = globalAircraftState.alt;
   simTime = FDM.GetSimTime();
   globalAircraftState.simT = simTime;
 
@@ -332,21 +361,21 @@ std::string AutoPilot::getAircraftStateJSON()
   return globalAircraftState.getJSON();
 }
 
-double AutoPilot::blend_alpha_cmd(pid &bestRatePID, pid &gammaPID, double alphaCmd, bool gammaToBR) // Call this right before switch-off - calculate new integral for BR controller
+double AutoPilot::blend_alpha_cmd(double alphaCmd, bool gammaToBR) // Call this right before switch-off - calculate new integral for BR controller
 {
   double integral;
 
-  if (gammaToBR && (int(alphaCmd) == maneuverConfig.at(LEFT_MANEUVER).get<int>() || int(alphaCmd) == maneuverConfig.at(RIGHT_MANEUVER).get<int>()))
+  if (gammaToBR && (int(alphaCmd) == maneuverConfig[LEFT_MANEUVER] || int(alphaCmd) == maneuverConfig[RIGHT_MANEUVER]))
   {
-    integral = 2.8 / bestRatePID.ki;
+    integral = 2.8 / bestRateControllerAlpha.ki;
   }
-  else if (gammaToBR && (int(alphaCmd) == maneuverConfig.at(STRAIGHT_MANEUVER).get<int>()))
+  else if (gammaToBR && (int(alphaCmd) == maneuverConfig[STRAIGHT_MANEUVER]))
   {
-    integral = 2.05 / bestRatePID.ki; // for straight at 75 knots only
+    integral = 2.05 / bestRateControllerAlpha.ki; // for straight at 75 knots only
   }
   else
   {
-    double integral = (bestRatePID.integ - integral) / 2;
+    double integral = (bestRateControllerAlpha.integ - integral) / 2;
   }
 
   return integral;
@@ -359,50 +388,15 @@ void AutoPilot::set_throttle_pos()
   int throttleOffset = 15; // knots above bestRate where the throttle will go to 100%
   int throttleHyster = 5;  // To go 100%, vc <= bestRate + throttleOffset - throttleHyster. For 0%, vc >= bestRate + throttleOffset + throttleHyster
 
-  if ((globalAircraftState.vc <= maxRateSpeed + throttleOffset - throttleHyster) && !throttleOn)
+  if ((globalAircraftState.vc <= maxRateSpeed + throttleOffset - throttleHyster) && !globalAircraftState.throttleOn)
   {
-    throttleOn = 1;
+    globalAircraftState.throttleOn = 1;
   }
-  else if ((globalAircraftState.vc >= maxRateSpeed + throttleOffset + throttleHyster) && throttleOn)
+  else if ((globalAircraftState.vc >= maxRateSpeed + throttleOffset + throttleHyster) && globalAircraftState.throttleOn)
   {
-    throttleOn = 0;
+    globalAircraftState.throttleOn = 0;
   }
-  FDM.SetPropertyValue("fcs/throttle-cmd-norm", throttleOn);
-}
-
-void AutoPilot::configure_jsbsim() // Loads scripts/aircraft/reset files (if any passed)
-{
-  if (!ScriptName.isNull())
-  {
-    FDM.LoadScript(ScriptName); // retrieved by parsing options in options()
-  }
-  else if (!AircraftName.empty())
-  {
-    FDM.LoadModel(SGPath("aircraft"), SGPath("engine"), SGPath("systems"), AircraftName);
-
-    if (!ResetName.isNull())
-    {
-      auto IC = FDM.GetIC(); // GetIC() returns a pointer to the FGInitialConditions object.
-      IC->Load(ResetName);
-    }
-  }
-  for (unsigned oDirChar = 0; oDirChar < LogDirectiveName.size(); oDirChar++) // Loads output directive file(s)
-  {
-    if (!LogDirectiveName[oDirChar].isNull())
-    {
-      FDM.SetOutputDirectives(LogDirectiveName[oDirChar]);
-    }
-  }
-
-  frame_duration = FDM.GetDeltaT();
-  if (realtime)
-  {
-    sleep_nseconds = (long)(frame_duration * 1e3);
-  }
-  else
-  {
-    sleep_nseconds = (sleep_period)*1e3;
-  }
+  FDM.SetPropertyValue("fcs/throttle-cmd-norm", globalAircraftState.throttleOn);
 }
 
 double AutoPilot::G_limit()
@@ -439,11 +433,11 @@ void pid::configure(double kp, double ki, double kd, double min, double max, dou
 void pid::init_integrator(bool isBR)
 {
   // constants found by finding alpha bias for aircraft at certain weights maintaining 75kts full throttle, then interpalated
-  if (isBR && (globalAircraftState.apMode == maneuverConfig.at(LEFT_MANEUVER).get<int>() || globalAircraftState.apMode == maneuverConfig.at(RIGHT_MANEUVER).get<int>()))
+  if (isBR && (globalAircraftState.apMode == maneuverConfig[LEFT_MANEUVER] || globalAircraftState.apMode == maneuverConfig[RIGHT_MANEUVER]))
   {
     this->integ = ((0.00224 * globalAircraftState.weight) - 1.783) / this->ki;
   }
-  else if (isBR && globalAircraftState.apMode == maneuverConfig.at(STRAIGHT_MANEUVER).get<int>())
+  else if (isBR && globalAircraftState.apMode == maneuverConfig[STRAIGHT_MANEUVER])
   {
     this->integ = ((0.00193 * globalAircraftState.weight - 1.942)) / this->ki;
   }
@@ -512,9 +506,6 @@ void JSBAircraftState::get_inertial_vector(double (&lat)[2], double (&lon)[2], d
 
 void JSBAircraftState::update_readonly_properties()
 {
-  // make sure we're referencing the globalAircraftState
-  assert(this == &globalAircraftState);
-
   if (simStep == 0)
   {
     initLat = FDM.GetPropertyValue("position/lat-gc-deg");
@@ -573,37 +564,6 @@ void JSBAircraftState::update_readonly_properties()
 
 }
 
-double JSBAircraftState::unwrap(double newAng) // PID controller for course freaks out when angle gets wrapped. Need to unwrap angle for course controller ONLY. JSBSim needs it to be wrapped to work properly
-{
-  if (std::isnan(prevAngleWrap)) // catch first run when prev angle is uninstantiated
-  {
-    prevAngleWrap = newAng;
-  }
-  double angDiff = (prevAngleWrap - newAng);
-  double wrappedAng = newAng;
-
-  if (angDiff < 0 && abs(angDiff) > 350) // we wrapped from 0 to 360
-  {
-    tWrapped--;
-  }
-  else if (angDiff > 0 && abs(angDiff) > 350) // we wrapped from 360 to 0
-  {
-    tWrapped++;
-  }
-
-  if (tWrapped > 0)
-  {
-    wrappedAng = newAng + (360 * tWrapped);
-  }
-  else if (tWrapped < 0)
-  {
-    wrappedAng = -(360 - newAng) + (360 * (tWrapped + 1));
-  }
-  prevAngleWrap = newAng;
-
-  return wrappedAng;
-}
-
 void JSBAircraftState::writeWithJSONFromPython(py::object pyStr_JSONPayload)
 {
   // convert the python string into valid json
@@ -622,96 +582,63 @@ void JSBAircraftState::writeWithJSONFromPython(py::object pyStr_JSONPayload)
  */
 void JSBAircraftState::writeWithJSON(std::string JSONPayload)
 {
+  // modifies the initial conditions 
+  // populates to the flight executive
+
+  std::shared_ptr<JSBSim::FGInitialCondition> fgic = FDM.GetIC();
+ 
+  // Reset the initial conditions and set VCAS and altitude
+  fgic->InitializeIC();
 
   // overwrite the object's JSON object from the JSON payload
   jsonObject = json::parse(JSONPayload);
-
-  initLat = jsonObject.at("initLat");
-  initLon = jsonObject.at("initLon");
-  initAlt = jsonObject.at("initAlt");
-
-  /* position */
-  lat = jsonObject.at("lat");
-  lon = jsonObject.at("lon");
-  alt = jsonObject.at("alt");
-
-  /* velocites */
-  // vc = jsonObject.at("vc");
-  vt_kts = jsonObject.at("vt");
-  uB = jsonObject.at("uB");
-  vB = jsonObject.at("vB");
-  wB = jsonObject.at("wB");
-
-  /* attitude and orientation */
-  phiB = jsonObject.at("phiB");
-  thetaB = jsonObject.at("thetaB");
-  psiB = jsonObject.at("psiB");
-
-  chi = jsonObject.at("chi");
-  alpha = jsonObject.at("alpha");
-  beta = jsonObject.at("beta");
-  gamma = jsonObject.at("gamma");
-
-  /* orientation rates */
-  p = jsonObject.at("p");
-  q = jsonObject.at("q");
-  r = jsonObject.at("r");
-
-  /* misc */
-  weight = jsonObject.at("weight");
-  isSteady = jsonObject.at("isSteady");
-
-  nzG = jsonObject.at("nzG");
+  FDM.SetPropertyValue("inertia/weight-lbs", jsonObject.at("weight").get<double>());
+  FDM.SetPropertyValue("accelerations/Nz", 1.0);
 
   /* overwrite JSB's values */
+
   FDM.Hold(); // pause the physics engine
 
-  FDM.SetPropertyValue("ic/lat-gc-deg", initLat);
-  FDM.SetPropertyValue("ic/long-gc-deg", initLon);
-  FDM.SetPropertyValue("ic/h-agl-ft", alt);
-  // FDM.SetPropertyValue("ic/vc-kts", vc);
-  FDM.SetPropertyValue("ic/phi-deg", phiB);
-  FDM.SetPropertyValue("ic/theta-deg", thetaB);
-  FDM.SetPropertyValue("ic/psi-true-deg", psiB);
-  FDM.SetPropertyValue("flight-path/psi-gt-rad", chi * DEG2RAD);
-  FDM.SetPropertyValue("ic/p-rad_sec", p);
-  FDM.SetPropertyValue("ic/q-rad_sec", q);
-  FDM.SetPropertyValue("ic/r-rad_sec", r);
-  FDM.SetPropertyValue("ic/alpha-deg", alpha);
-  FDM.SetPropertyValue("ic/gamma-deg", gamma);
+  /* position */
+  fgic->SetLatitudeDegIC(jsonObject.at("lat").get<double>());
+  fgic->SetLongitudeDegIC(jsonObject.at("lon").get<double>());
+  fgic->SetAltitudeAGLFtIC(jsonObject.at("alt").get<double>());
+  fgic->SetLatitudeDegIC(jsonObject.at("initLat").get<double>());
+  fgic->SetLongitudeDegIC(jsonObject.at("initLon").get<double>());
+  fgic->SetAltitudeAGLFtIC(jsonObject.at("initAlt").get<double>());
 
-  FDM.SetPropertyValue("position/lat-gc-deg", lat);
-  FDM.SetPropertyValue("position/long-gc-deg", lon);
-  FDM.SetPropertyValue("position/h-agl-ft", alt);
-  // FDM.SetPropertyValue("velocities/vc-kts", vc);
-  FDM.SetPropertyValue("velocities/u-fps", uB);
-  FDM.SetPropertyValue("velocities/v-fps", vB);
-  FDM.SetPropertyValue("velocities/w-fps", wB);
-  FDM.SetPropertyValue("attitude/phi-rad", phiB * DEG2RAD);
-  FDM.SetPropertyValue("attitude/theta-rad", thetaB * DEG2RAD);
-  FDM.SetPropertyValue("attitude/psi-true-rad", psiB * DEG2RAD);
-  FDM.SetPropertyValue("aero/alpha-rad", alpha * DEG2RAD);
-  FDM.SetPropertyValue("aero/beta-rad", beta * DEG2RAD);
-  FDM.SetPropertyValue("flight-path/gamma-rad", gamma * DEG2RAD);
-  FDM.SetPropertyValue("velocities/p-rad_sec", p);
-  FDM.SetPropertyValue("velocities/q-rad_sec", q);
-  FDM.SetPropertyValue("velocities/r-rad_sec", r);
-  FDM.SetPropertyValue("inertia/weight-lbs", weight);
-  FDM.SetPropertyValue("accelerations/Nz", nzG);
-  FDM.SetPropertyValue("velocities/vt-fps", vt_kts * KNOT2FPS);
+  /* velocities and airspeeds */
+  fgic->SetVtrueKtsIC(jsonObject.at("vt").get<double>());
+  fgic->SetUBodyFpsIC(jsonObject.at("uB").get<double>());
+  fgic->SetVBodyFpsIC(jsonObject.at("vB").get<double>());
+  fgic->SetWBodyFpsIC(jsonObject.at("wB").get<double>());
 
-  /* resume the physics engine */
-  FDM.ResetToInitialConditions(MODE_1);
-
-  /* reenable engine */
+  /* attitude and attitude rates */
+  fgic->SetPhiDegIC(jsonObject.at("phiB").get<double>());
+  fgic->SetPsiDegIC(jsonObject.at("psiB").get<double>());
+  fgic->SetBetaDegIC(jsonObject.at("beta").get<double>());
+  fgic->SetAlphaDegIC(jsonObject.at("alpha").get<double>());
+  fgic->SetThetaDegIC(jsonObject.at("thetaB").get<double>());
+  fgic->SetPRadpsIC(jsonObject.at("p").get<double>() * DEG2RAD);
+  fgic->SetQRadpsIC(jsonObject.at("q").get<double>() * DEG2RAD);
+  fgic->SetRRadpsIC(jsonObject.at("r").get<double>() * DEG2RAD);
+  fgic->SetFlightPathAngleDegIC(jsonObject.at("gamma").get<double>());
+  
   FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
   FDM.SetPropertyValue("propulsion/set-running", ENGINE_RUNNING_CMD);
   FDM.SetPropertyValue("propulsion/cutoff_cmd", ENGINE_CUTOFF_CMD);
 
+  FDM.GetPropagate()->SetInitialState(fgic.get());
   assert(FDM.RunIC());
   assert(FDM.Run());
   
+  /* resume the physics engine */
+  // FDM.ResetToInitialConditions(MODE_1);
+
   FDM.Resume();
+  update_readonly_properties();
+  return;
+  
 }
 
 py::object JSBAircraftState::getJSONFromPython()
@@ -724,6 +651,28 @@ std::string JSBAircraftState::getJSON()
   assert(this == &globalAircraftState); // this line is to assure that we're referencing the correct aircraft state, and not an unconstructed object.
 
   // update the json object and send the payload to python
+
+  // initLat = FDM.GetPropertyValue("ic/lat-gc-deg");
+  // initLon = FDM.GetPropertyValue("ic/long-gc-deg");
+  // lat = FDM.GetPropertyValue("position/lat-gc-deg");
+  // lon = FDM.GetPropertyValue("position/long-gc-deg");
+  // alt = FDM.GetPropertyValue("position/h-agl-ft");
+  // phiB = FDM.GetPropertyValue("attitude/phi-rad");
+  // thetaB = FDM.GetPropertyValue("attitude/theta-rad");
+  // psiB = FDM.GetPropertyValue("attitude/psi-true-rad");
+  // uB = FDM.GetPropertyValue("velocities/u-fps");
+  // vB = FDM.GetPropertyValue("velocities/v-fps");
+  // wB = FDM.GetPropertyValue("velocities/w-fps");
+  // p = FDM.GetPropertyValue("velocities/p-rad_sec");
+  // q = FDM.GetPropertyValue("velocities/q-rad_sec");
+  // r = FDM.GetPropertyValue("velocities/r-rad_sec");
+  // alpha = FDM.GetPropertyValue("aero/alpha-rad");
+  // beta = FDM.GetPropertyValue("aero/beta-rad");
+  // gamma = FDM.GetPropertyValue("flight-path/gamma-rad");
+  // weight = FDM.GetPropertyValue("inertia/weight-lbs");
+  // nzG = FDM.GetPropertyValue("accelerations/Nz");
+  // vt_kts = FDM.GetPropertyValue("velocities/vt-fps") * FPS2KNOT;
+  // vc = FDM.GetPropertyValue("velocities/vt-fps") * FPS2KNOT;
 
   // position
   jsonObject["initLat"] = initLat;
@@ -747,9 +696,9 @@ std::string JSBAircraftState::getJSON()
   jsonObject["q"] = q;
   jsonObject["r"] = r;
   jsonObject["weight"] = weight;
+
   jsonObject["isSteady"] = isSteady;
   jsonObject["nzG"] = nzG;
-
   jsonObject["phiB"] = phiB;
   jsonObject["phiCmd"] = phiCmd;
 
@@ -764,6 +713,9 @@ std::string JSBAircraftState::getJSON()
 
   jsonObject["gamma"] = gamma;
   jsonObject["gamCmd"] = gamCmd;
+
+  jsonObject["deltECmd"] = deltECmd;
+  jsonObject["deltE"] = FDM.GetPropertyValue("fcs/elevator-pos-norm");
 
   jsonObject["throttleOn"] = throttleOn;
 
@@ -783,7 +735,7 @@ void JSBAircraftState::setModeFromPython(py::object pyObj_commandedMode)
 
 void JSBAircraftState::setMode(std::string commandedMode)
 {
-  this->apMode = maneuverConfig.at(commandedMode).get<int>();
+  this->apMode = maneuverConfig[commandedMode];
 }
 
 py::object JSBAircraftState::getExtendedJSBSimStateFromPython()
@@ -1100,14 +1052,14 @@ int main()
   AutoPilot autopilot;
   configureManeuverConfig();
 
+  // read aircraft state JSON File into a nlhomann::JSON object
   std::ifstream aircraftStateFile(tulsa::dirPath.path + tulsa::AIRCRAFT_STATE_PATH);
   std::stringstream aircraftStateBuffer;
-
-    if (!aircraftStateFile)
-    {
-        std::cout << "ERROR: INVALID JSON FILE PATH FOR AIRCRAFT INPUT STATE: " << tulsa::dirPath.path + tulsa::AIRCRAFT_STATE_PATH << std::endl;
-        return EXIT_FAILURE;
-    }
+  if (!aircraftStateFile)
+  {
+      std::cout << "ERROR: INVALID JSON FILE PATH FOR AIRCRAFT INPUT STATE: " << tulsa::dirPath.path + tulsa::AIRCRAFT_STATE_PATH << std::endl;
+      return EXIT_FAILURE;
+  }
 
   aircraftStateBuffer << aircraftStateFile.rdbuf();
   json jsonObject = json::parse(aircraftStateBuffer.str());
