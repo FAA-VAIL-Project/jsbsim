@@ -60,8 +60,9 @@ namespace tulsa
             JSONObject["beta"] = beta;
             JSONObject["gamma"] = gamma;
             JSONObject["weight"] = weight;
+            JSONObject["nzG"] = nzG;
+            // JSONObject["throttleOn"] = throttleOn;
             // JSONObject["isSteady"] = isSteady;
-            // JSONObject["nzG"] = nzG;
             // JSONObject["rangeFt"] = rangeFt;
             // JSONObject["time"] = time;
             // JSONObject["alphaCmd"] = alphaCmd;
@@ -69,7 +70,6 @@ namespace tulsa
             // JSONObject["crsCmd"] = crsCmd;
             // JSONObject["gamCmd"] = gamCmd;
             // JSONObject["phiCmd"] = phiCmd;
-            // JSONObject["throttleOn"] = throttleOn;
             // JSONObject["starter_cmd"] = starter_cmd;
             // JSONObject["total-fuel-lbs"] = total-fuel-lbs;
             // JSONObject["set-running"] = set-running;

@@ -53,6 +53,10 @@ void AutoPilot::run(JSBSim::FGFDMExec* FDM, int numIterations = 5)
 
   for (int iter = 0; iter < numIterations; iter++)
   {
+    FDM->SetPropertyValue("fcs/throttle-cmd-norm", (double)1.0);
+    FDM->SetPropertyValue("propulsion/magneto_cmd", 3);
+    FDM->SetPropertyValue("propulsion/starter_cmd", 1);
+
     simTime = FDM->GetSimTime();
     aircraftstate.simT = simTime;
     
@@ -103,9 +107,9 @@ void AutoPilot::run(JSBSim::FGFDMExec* FDM, int numIterations = 5)
       deltECmd = isNeg(deltECmd) * std::min(clampG, abs(deltECmd));
     }
 
-    saturateNormalizedControlSurface(&deltRCmd);
-    saturateNormalizedControlSurface(&deltACmd);
-    saturateNormalizedControlSurface(&deltECmd);
+    // saturateNormalizedControlSurface(&deltRCmd);
+    // saturateNormalizedControlSurface(&deltACmd);
+    // saturateNormalizedControlSurface(&deltECmd);
 
     FDM->SetPropertyValue("fcs/rudder-cmd-norm", deltRCmd);
     FDM->SetPropertyValue("fcs/aileron-cmd-norm", deltACmd);
@@ -225,7 +229,7 @@ void AutoPilot::set_throttle_pos(JSBSim::FGFDMExec* FDM)
     throttleOn = 0;
   }
 
-  FDM->SetPropertyValue("fcs/throttle-cmd-norm", throttleOn);
+  FDM->SetPropertyValue("fcs/throttle-cmd-norm", (double)throttleOn);
 }
 
 double AutoPilot::G_limit()
@@ -267,29 +271,39 @@ void AutoPilot::setCommandedManeuver(int desiredManeuver)
 {
   aircraftstate.apMode = desiredManeuver;
   currentManeuver = desiredManeuver;
+
+  // assign the trim condition
+  if (currentManeuver == maneuverConfig[LEFT_MANEUVER] || currentManeuver == maneuverConfig[RIGHT_MANEUVER])
+  {
+    this->trimCondition = "turn";
+  }
+  else if (currentManeuver == maneuverConfig[STRAIGHT_MANEUVER])
+  {
+    this->trimCondition = "pullup";
+  }
+
   return;
 }
 
 void AutoPilot::readAircraftState(json& JSONObject)
 {
   aircraftstate.populateJSONObject(JSONObject);
-  // JSONObject["phiB"] = phiB;
-  // JSONObject["phiCmd"] = phiCmd;
 
-  // JSONObject["chi"] = chi;
-  // JSONObject["crsCmd"] = crsCmd;
+  // populate values only internal to AutoPilot class here.
 
-  // JSONObject["alpha"] = alpha;
-  // JSONObject["alphaCmd"] = alphaCmd;
+  // attitude commands
+  JSONObject["phiCmd"] = phiCmd;
+  JSONObject["crsCmd"] = crsCmd;
+  JSONObject["alphaCmd"] = alphaCmd;
+  JSONObject["betaCmd"] = betaCmd;
+  JSONObject["gamCmd"] = gamCmd;
 
-  // JSONObject["beta"] = beta;
-  // JSONObject["betaCmd"] = betaCmd;
+  // control surface commands
+  JSONObject["deltRCmd"] = deltRCmd;
+  JSONObject["deltACmd"] = deltACmd;
+  JSONObject["deltECmd"] = deltECmd;
+  JSONObject["throttleOn"] = throttleOn;
 
-  // JSONObject["gamma"] = gamma;
-  // JSONObject["gamCmd"] = gamCmd;
-
-  // JSONObject["throttleOn"] = throttleOn;
-  // TODO complete JSONObject population
   return;
 }
 
@@ -399,38 +413,5 @@ void AutoPilot::get_inertial_vector()
 
     inertialVector = {flatEucDist, eucDist, thetaFromOrigin, psiFromOrigin, xDist, yDist, hDist}; // Was originally going to pass this back, but now it just updates the vector in the ...
 }
-
-
-/* executable entry */
-// int main()
-// {
-//   AutoPilot autopilot;
-//   configureManeuverConfig();
-
-//   std::ifstream aircraftStateFile(tulsa::dirPath.path + tulsa::AIRCRAFT_STATE_PATH);
-//   std::stringstream aircraftStateBuffer;
-
-//     if (!aircraftStateFile)
-//     {
-//         std::cout << "ERROR: INVALID JSON FILE PATH FOR AIRCRAFT INPUT STATE: " << tulsa::dirPath.path + tulsa::AIRCRAFT_STATE_PATH << std::endl;
-//         return EXIT_FAILURE;
-//     }
-
-//   aircraftStateBuffer << aircraftStateFile.rdbuf();
-//   json jsonObject = json::parse(aircraftStateBuffer.str());
-
-//   aircraftstate.writeWithJSON(jsonObject["JSB"].dump());
-//   autopilot.initializeFDM();
-
-//   for (int i = 0; i < 10; i++)
-//   {
-//     autopilot.run();
-//     std::cout << "aircraftstate.getJSON()\n\n" << aircraftstate.getJSON() << std::endl;
-//   }
-
-//   std::cout << "JSBSim_Interface.cpp\nmain() complete.\n";
-
-//   return EXIT_SUCCESS;
-// }
 
 } // namespace tulsa

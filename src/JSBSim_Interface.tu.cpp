@@ -31,10 +31,12 @@ namespace tulsa
         FDM.SetPropertyValue("inertia/pointmass-weight-lbs[0]", neededWeight / 2);
         FDM.SetPropertyValue("inertia/pointmass-weight-lbs[1]", neededWeight / 2);
 
-        // may need these lines...
-        FDM.SetPropertyValue("propulsion/magneto_cmd", MAGNETO_ON_CMD);
-        FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
-        FDM.SetPropertyValue("propulsion/set-running", ENGINE_RUNNING_CMD);
+        FDM.SetPropertyValue("fcs/throttle-cmd-norm", (double)1.0);
+        FDM.SetPropertyValue("propulsion/magneto_cmd", 3);
+        FDM.SetPropertyValue("propulsion/starter_cmd", 1);
+        // FDM.SetPropertyValue("propulsion/magneto_cmd", MAGNETO_ON_CMD);
+        // FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
+        // FDM.SetPropertyValue("propulsion/set-running", ENGINE_RUNNING_CMD);
         // assert(FDM.RunIC());
         // assert(FDM.Run());
 
@@ -76,7 +78,8 @@ namespace tulsa
     void JSBSim_Interface::runAutoPilotFromPython(py::object pyObj_numIterations)
     {
         int numIterations = pyObj_numIterations.cast<int>();
-        runAutoPilot(numIterations);        
+        runAutoPilot(numIterations);
+        return;
     }
 
     void JSBSim_Interface::runAutoPilot(int numIterations)
@@ -100,6 +103,10 @@ namespace tulsa
 
         std::shared_ptr<JSBSim::FGInitialCondition> fgic = this->FDM.GetIC();
 
+        // TODO write logic to manually set individual parameters
+        // if(existsInJSON) { setParameter(jsonObject.at("paramKey")) }
+        // JSONObject.contains("key_value") -> true, false
+
         double true_airspeed = JSONObject.at("vt").get<double>();
         double heading = JSONObject.at("psiB").get<double>();
 
@@ -107,7 +114,7 @@ namespace tulsa
         fgic->SetLongitudeDegIC(JSONObject.at("lon").get<double>());
         fgic->SetTerrainElevationFtIC((double)0.0);
         fgic->SetAltitudeASLFtIC(JSONObject.at("alt").get<double>());
-        fgic->SetLatitudeDegIC(JSONObject.at("lon").get<double>());
+        fgic->SetLatitudeDegIC(JSONObject.at("lat").get<double>());
 
         /* orientation */
         JSBSim::FGColumnVector3 vOrient = fgic->GetOrientation().GetEuler();
@@ -123,8 +130,8 @@ namespace tulsa
         fgic->SetWBodyFpsIC(JSONObject.at("wB").get<double>());
 
         // TODO evaluate this math
-        fgic->SetVNorthFpsIC(true_airspeed * sin(heading * DEG2RAD));
-        fgic->SetVEastFpsIC(true_airspeed * cos(heading * DEG2RAD));
+        fgic->SetVNorthFpsIC(true_airspeed * cos(JSONObject.at("chi").get<double>() * DEG2RAD));
+        fgic->SetVEastFpsIC(true_airspeed * sin(JSONObject.at("chi").get<double>() * DEG2RAD));
         fgic->SetVDownFpsIC(JSONObject.at("wB").get<double>());
 
         // fgic->SetVcalibratedKtsIC(JSONObject.at("vc").get<double>());
@@ -144,20 +151,25 @@ namespace tulsa
         fgic->SetHeadWindKtsIC((double)0.0);
         fgic->SetCrossWindKtsIC((double)0.0);
 
+        // enable the engine
+        FDM.SetPropertyValue("fcs/throttle-cmd-norm", (double)1.0);
+        FDM.SetPropertyValue("propulsion/magneto_cmd", 3);
+        FDM.SetPropertyValue("propulsion/starter_cmd", 1);
+        // FDM.SetPropertyValue("propulsion/active_engine", -1); // all engines, or default, single engine
+        // FDM.SetPropertyValue("propulsion/magneto_cmd", 3); //  “propulsion/starter_cmd”
+        // FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
+        // FDM.SetPropertyValue("propulsion/set-running", ENGINE_RUNNING_CMD);
+
+        // void FGPropulsion::SetStarter(int setting)
+        // ActiveEngine
+
         // fgic->SetTargetNlfIC();
 
-        /* trim */
-        // if (this->apMode == maneuverConfig[LEFT_MANEUVER] || this->apMode == maneuverConfig[RIGHT_MANEUVER])
-        // {
-        //     fgic->SetTrimRequest("turn");
-        // }
-        // else if (this->apMode == maneuverConfig[STRAIGHT_MANEUVER])
-        // {
-        //     fgic->SetTrimRequest("pullup");
-        // }
+        fgic->SetTrimRequest(autopilot.trimCondition);
 
         FDM.ResetToInitialConditions(MODE_1);
-        FDM.RunIC();
+        assert(FDM.RunIC());
+        runAutoPilot(1);
         
         return;
     }
@@ -493,7 +505,6 @@ int main(int argc, char* argv[])
     jsb.initializeJSBSim();
     jsb.writeManeuverConfiguration();
     jsb.resetAircraftState(jsonObject["JSB"].dump());
-    // jsb.writeManeuverConfiguration(std::string("{\"Idle\": -1,\"Left\": 0,\"Right\": 1,\"Straight\": 2}"));
     jsb.setCommandedManeuver(0);
 
     for(int i = 0; i < 500; i++)

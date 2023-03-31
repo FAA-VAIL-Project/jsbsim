@@ -689,6 +689,8 @@ public:
 
   void bind(FGPropertyManager* pm);
 
+  void SetTrimRequest(std::string trim);
+
 private:
   FGColumnVector3 vUVW_NED;
   FGColumnVector3 vPQR_body;
@@ -725,7 +727,6 @@ private:
   void calcThetaBeta(double alfa, const FGColumnVector3& _vt_NED);
   double ComputeGeodAltitude(double geodLatitude);
   bool LoadLatitude(Element* position_el);
-  void SetTrimRequest(std::string trim);
   void Debug(int from);
 };
 }

@@ -136,7 +136,7 @@ class AutoPilot
     void writeManeuverConfig(void); // default configuration
     void setCommandedManeuver(int);
     void readAircraftState(json&);
-    
+    std::string trimCondition = "longitudinal";
 };
 
 } // namespace tulsa
