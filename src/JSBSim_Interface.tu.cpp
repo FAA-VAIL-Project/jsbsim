@@ -31,19 +31,15 @@ namespace tulsa
         FDM.SetPropertyValue("inertia/pointmass-weight-lbs[0]", neededWeight / 2);
         FDM.SetPropertyValue("inertia/pointmass-weight-lbs[1]", neededWeight / 2);
 
-        FDM.SetPropertyValue("fcs/throttle-cmd-norm", (double)1.0);
-        FDM.SetPropertyValue("propulsion/magneto_cmd", 3);
-        FDM.SetPropertyValue("propulsion/starter_cmd", 1);
-        // FDM.SetPropertyValue("propulsion/magneto_cmd", MAGNETO_ON_CMD);
-        // FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
-        // FDM.SetPropertyValue("propulsion/set-running", ENGINE_RUNNING_CMD);
-        // assert(FDM.RunIC());
-        // assert(FDM.Run());
+        if(FDM.GetPropertyValue("propulsion/magneto_cmd") != 1)
+        {
+            FDM.SetPropertyValue("propulsion/starter_cmd", 1);
+        }
 
+        autopilot.reenable_engine(&FDM);
         FDM.RunIC();
-
+        FDM.Run();
         return;
-
     }
 
     void JSBSim_Interface::writeManeuverConfigurationFromPython(py::object pyObj_maneuverConfigurationPayload)
@@ -152,16 +148,7 @@ namespace tulsa
         fgic->SetCrossWindKtsIC((double)0.0);
 
         // enable the engine
-        FDM.SetPropertyValue("fcs/throttle-cmd-norm", (double)1.0);
-        FDM.SetPropertyValue("propulsion/magneto_cmd", 3);
-        FDM.SetPropertyValue("propulsion/starter_cmd", 1);
-        // FDM.SetPropertyValue("propulsion/active_engine", -1); // all engines, or default, single engine
-        // FDM.SetPropertyValue("propulsion/magneto_cmd", 3); //  “propulsion/starter_cmd”
-        // FDM.SetPropertyValue("propulsion/starter_cmd", ENGINE_START_CMD);
-        // FDM.SetPropertyValue("propulsion/set-running", ENGINE_RUNNING_CMD);
-
-        // void FGPropulsion::SetStarter(int setting)
-        // ActiveEngine
+        autopilot.reenable_engine(&FDM);
 
         // fgic->SetTargetNlfIC();
 

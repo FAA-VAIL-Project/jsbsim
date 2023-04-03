@@ -32,8 +32,7 @@ namespace tulsa
         double simT;
         int apMode;
         bool isSteady = false;
-
-        nlohmann::json jsonObject;
+        double deltE, deltA, deltR;
 
         // populates a json object with information about the aircraft state.
         void populateJSONObject(json& JSONObject)
@@ -44,6 +43,7 @@ namespace tulsa
             JSONObject["lat"] = lat;
             JSONObject["lon"] = lon;
             JSONObject["alt"] = alt;
+            JSONObject["va"] = vA;
             JSONObject["vc"] = vc;
             JSONObject["vt"] = vt_kts;
             JSONObject["phiB"] = phiB;
@@ -61,20 +61,9 @@ namespace tulsa
             JSONObject["gamma"] = gamma;
             JSONObject["weight"] = weight;
             JSONObject["nzG"] = nzG;
-            // JSONObject["throttleOn"] = throttleOn;
-            // JSONObject["isSteady"] = isSteady;
-            // JSONObject["rangeFt"] = rangeFt;
-            // JSONObject["time"] = time;
-            // JSONObject["alphaCmd"] = alphaCmd;
-            // JSONObject["betaCmd"] = betaCmd;
-            // JSONObject["crsCmd"] = crsCmd;
-            // JSONObject["gamCmd"] = gamCmd;
-            // JSONObject["phiCmd"] = phiCmd;
-            // JSONObject["starter_cmd"] = starter_cmd;
-            // JSONObject["total-fuel-lbs"] = total-fuel-lbs;
-            // JSONObject["set-running"] = set-running;
-            // JSONObject["deltECmd"] = deltECmd;
-            // JSONObject["deltE"] = deltE;
+            JSONObject["deltE"] = deltE;
+            JSONObject["deltA"] = deltA;
+            JSONObject["deltA"] = deltR;
             return;
         }
     };

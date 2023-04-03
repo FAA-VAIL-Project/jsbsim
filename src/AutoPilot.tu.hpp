@@ -136,6 +136,7 @@ class AutoPilot
     void writeManeuverConfig(void); // default configuration
     void setCommandedManeuver(int);
     void readAircraftState(json&);
+    void reenable_engine(JSBSim::FGFDMExec*);
     std::string trimCondition = "longitudinal";
 };
 
