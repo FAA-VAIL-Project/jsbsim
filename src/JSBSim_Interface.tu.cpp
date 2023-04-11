@@ -99,49 +99,42 @@ namespace tulsa
 
         std::shared_ptr<JSBSim::FGInitialCondition> fgic = this->FDM.GetIC();
 
-        // TODO write logic to manually set individual parameters
-        // if(existsInJSON) { setParameter(jsonObject.at("paramKey")) }
-        // JSONObject.contains("key_value") -> true, false
-
-        double true_airspeed = JSONObject.at("vt").get<double>();
-        double heading = JSONObject.at("psiB").get<double>();
-
         /* position */
-        fgic->SetLongitudeDegIC(JSONObject.at("lon").get<double>());
+        if(JSONObject.contains("lat")) {fgic->SetLongitudeDegIC(JSONObject.at("lon").get<double>());}
         fgic->SetTerrainElevationFtIC((double)0.0);
-        fgic->SetAltitudeASLFtIC(JSONObject.at("alt").get<double>());
-        fgic->SetLatitudeDegIC(JSONObject.at("lat").get<double>());
+        if(JSONObject.contains("alt")) {fgic->SetAltitudeASLFtIC(JSONObject.at("alt").get<double>());}
+        if(JSONObject.contains("lat")) {fgic->SetLatitudeDegIC(JSONObject.at("lat").get<double>());}
 
         /* orientation */
         JSBSim::FGColumnVector3 vOrient = fgic->GetOrientation().GetEuler();
-        vOrient(FDM.ePhi) = JSONObject.at("phiB").get<double>() * DEG2RAD;
-        vOrient(FDM.eTht) = JSONObject.at("thetaB").get<double>() * DEG2RAD;
-        vOrient(FDM.ePsi) = heading * DEG2RAD;
+        if(JSONObject.contains("phiB")) {vOrient(FDM.ePhi) = JSONObject.at("phiB").get<double>() * DEG2RAD;}
+        if(JSONObject.contains("thetaB")) {vOrient(FDM.eTht) = JSONObject.at("thetaB").get<double>() * DEG2RAD;}
+        if(JSONObject.contains("phiB")) {vOrient(FDM.ePsi) = JSONObject.at("psiB").get<double>() * DEG2RAD;}
 
         // TODO do I need to reset the orientation here?
         // orientation = FGQuaternion(vOrient);
 
-        fgic->SetUBodyFpsIC(JSONObject.at("uB").get<double>());
-        fgic->SetVBodyFpsIC(JSONObject.at("vB").get<double>());
-        fgic->SetWBodyFpsIC(JSONObject.at("wB").get<double>());
+        if(JSONObject.contains("uB")) {fgic->SetUBodyFpsIC(JSONObject.at("uB").get<double>());}
+        if(JSONObject.contains("vB")) {fgic->SetVBodyFpsIC(JSONObject.at("vB").get<double>());}
+        if(JSONObject.contains("wB")) {fgic->SetWBodyFpsIC(JSONObject.at("wB").get<double>());}
 
         // TODO evaluate this math
-        fgic->SetVNorthFpsIC(true_airspeed * cos(JSONObject.at("chi").get<double>() * DEG2RAD));
-        fgic->SetVEastFpsIC(true_airspeed * sin(JSONObject.at("chi").get<double>() * DEG2RAD));
-        fgic->SetVDownFpsIC(JSONObject.at("wB").get<double>());
+        if(JSONObject.contains("chi")) {fgic->SetVNorthFpsIC(JSONObject.at("vt").get<double>() * cos(JSONObject.at("chi").get<double>() * DEG2RAD));}
+        if(JSONObject.contains("chi")) {fgic->SetVEastFpsIC(JSONObject.at("vt").get<double>() * sin(JSONObject.at("chi").get<double>() * DEG2RAD));}
+        if(JSONObject.contains("wB")) {fgic->SetVDownFpsIC(JSONObject.at("wB").get<double>());}
 
         // fgic->SetVcalibratedKtsIC(JSONObject.at("vc").get<double>());
-        fgic->SetVtrueKtsIC(true_airspeed * FPS2KNOT);
+        if(JSONObject.contains("vt")) {fgic->SetVtrueKtsIC(JSONObject.at("vt").get<double>() * FPS2KNOT);}
         // fgic->SetMachIC(0.0);
 
-        fgic->SetFlightPathAngleDegIC(JSONObject.at("gamma").get<double>());
+        if(JSONObject.contains("gamma")) {fgic->SetFlightPathAngleDegIC(JSONObject.at("gamma").get<double>());}
         // fgic->SetClimbRateFpsIC(JSONObject.at("roc").get<double>());
-        fgic->SetVgroundKtsIC(true_airspeed * FPS2KNOT);
+        if(JSONObject.contains("vt")) {fgic->SetVgroundKtsIC(JSONObject.at("vt").get<double>() * FPS2KNOT);}
 
-        fgic->SetAlphaDegIC(JSONObject.at("alpha").get<double>());
-        fgic->SetBetaDegIC(JSONObject.at("beta").get<double>());
+        if(JSONObject.contains("alpha")) {fgic->SetAlphaDegIC(JSONObject.at("alpha").get<double>());}
+        if(JSONObject.contains("beta")) {fgic->SetBetaDegIC(JSONObject.at("beta").get<double>());}
 
-        /* winds */
+        /* zero winds */
         fgic->SetWindMagKtsIC((double)0.0);
         fgic->SetWindDirDegIC((double)0.0);
         fgic->SetHeadWindKtsIC((double)0.0);
