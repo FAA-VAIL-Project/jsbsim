@@ -124,12 +124,12 @@ namespace tulsa
         if(JSONObject.contains("wB")) {fgic->SetVDownFpsIC(JSONObject.at("wB").get<double>());}
 
         // fgic->SetVcalibratedKtsIC(JSONObject.at("vc").get<double>());
-        if(JSONObject.contains("vt")) {fgic->SetVtrueKtsIC(JSONObject.at("vt").get<double>() * FPS2KNOT);}
+        if(JSONObject.contains("vt")) {fgic->SetVtrueKtsIC(JSONObject.at("vt").get<double>());}
         // fgic->SetMachIC(0.0);
 
         if(JSONObject.contains("gamma")) {fgic->SetFlightPathAngleDegIC(JSONObject.at("gamma").get<double>());}
         // fgic->SetClimbRateFpsIC(JSONObject.at("roc").get<double>());
-        if(JSONObject.contains("vt")) {fgic->SetVgroundKtsIC(JSONObject.at("vt").get<double>() * FPS2KNOT);}
+        if(JSONObject.contains("vt")) {fgic->SetVgroundKtsIC(JSONObject.at("vt").get<double>());}
 
         if(JSONObject.contains("alpha")) {fgic->SetAlphaDegIC(JSONObject.at("alpha").get<double>());}
         if(JSONObject.contains("beta")) {fgic->SetBetaDegIC(JSONObject.at("beta").get<double>());}
@@ -457,7 +457,7 @@ namespace tulsa
         JSONObject["velocities/ve-fps"] = FDM.GetPropertyValue("velocities/ve-fps");
         JSONObject["velocities/ve-kts"] = FDM.GetPropertyValue("velocities/ve-kts");
         JSONObject["velocities/vg-fps"] = FDM.GetPropertyValue("velocities/vg-fps");
-        JSONObject["velocities/vt-fps"] = FDM.GetPropertyValue("velocities/vt-fps");
+        JSONObject["velocities/vt-fps"] = FDM.GetPropertyValue("velocities/vt-fps") * FPS2KNOT;
         JSONObject["velocities/w-aero-fps"] = FDM.GetPropertyValue("velocities/w-aero-fps");
         JSONObject["velocities/w-fps"] = FDM.GetPropertyValue("velocities/w-fps");
 

@@ -64,6 +64,8 @@ namespace tulsa
             JSONObject["deltE"] = deltE;
             JSONObject["deltA"] = deltA;
             JSONObject["deltA"] = deltR;
+            isSteady ? JSONObject["isSteady"] = 1.0 : JSONObject["isSteady"] = 0.0;
+
             return;
         }
     };
