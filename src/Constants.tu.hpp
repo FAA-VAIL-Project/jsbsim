@@ -26,6 +26,10 @@ namespace tulsa
     const double FOOT2NMI = 0.000165;
     const double EARADNMI = 3443.930886; // Earth radius in nmi
     const double DEG2RAD = 1 / RAD2DEG;
+
+    /* C172 constants https://www.globalair.com/aircraft-for-sale/specifications?specid=131 */
+    const double C172_MAX_TAKEOFF_WEIGHT_LBS = 2400.0;
+    const double C172_MIN_EMPTY_WEIGHT_LBS = 1454.0;
 }
 
 #endif // TU_CONSTANTS_HPP

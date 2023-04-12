@@ -1,12 +1,18 @@
 #ifndef TU_JSBSIM_INTERFACE_HPP
 #define TU_JSBSIM_INTERFACE_HPP
 
-#include <FGFDMExec.h>
+/* external dependency includes */
+#include <pybind11/pybind11.h>
+#include "json/json.hpp"
+
+/* JSBSim includes */
+#include "FGFDMExec.h"
+#include "models/FGMassBalance.h"
+
+/* proprietary includes */
 #include "AutoPilot.tu.hpp"
 #include "pathing.h"
 #include "Constants.tu.hpp"
-#include "json/json.hpp"
-#include <pybind11/pybind11.h>
 
 namespace py = pybind11;
 
@@ -26,6 +32,7 @@ class JSBSim_Interface
     void resetAircraftState(std::string); // write initial conditions for a new aircraft state.
     std::string readAircraftState(void); // get a JSON Payload of the aircraft state variables.
     std::string getExtendedJSBSimState(void); // get the status of every JSBSim flight executive parameter value
+    void setWeightPounds(double); // set the new weight of the aircraft
 
     /* Python Methods*/
     void initializeJSBSimFromPython(void);

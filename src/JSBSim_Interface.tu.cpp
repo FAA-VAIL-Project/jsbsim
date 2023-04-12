@@ -6,7 +6,7 @@ namespace tulsa
 {
     void JSBSim_Interface::initializeJSBSimFromPython(void)
     {
-        initializeJSBSim();
+        initializeJSBSim(); // TODO why isn't this just the constructor? 
     }
 
     void JSBSim_Interface::initializeJSBSim()
@@ -21,15 +21,8 @@ namespace tulsa
         assert(FDM.LoadModel("c172x"));
         autopilot.initialize(&FDM);
 
+        setWeightPounds(2100.0);
         readAircraftState();
-
-        // configure the aircraft's weight distribution
-        int initFuel = (FDM.GetPropertyValue("propulsion/tank[0]/contents-lbs") + FDM.GetPropertyValue("propulsion/tank[1]/contents-lbs"));
-        int desiredWeight = aircraftstateJSONObject.at("weight").get<int>();
-        assert(aircraftstateJSONObject.at("weight").get<int>() > 1600);
-        int neededWeight = desiredWeight - FDM.GetPropertyValue("inertia/weight-lbs") - initFuel; // Weight is not properly set until first RunIC call - fuel is not included in weight calculation here, need to add it in.
-        FDM.SetPropertyValue("inertia/pointmass-weight-lbs[0]", neededWeight / 2);
-        FDM.SetPropertyValue("inertia/pointmass-weight-lbs[1]", neededWeight / 2);
 
         if(FDM.GetPropertyValue("propulsion/magneto_cmd") != 1)
         {
@@ -40,6 +33,48 @@ namespace tulsa
         FDM.RunIC();
         FDM.Run();
         return;
+    }
+
+    void JSBSim_Interface::setWeightPounds(double newTotalWeight)
+    {
+        std::shared_ptr<JSBSim::FGMassBalance> massBalance = FDM.GetMassBalance();
+
+        double curentExcessWeight = massBalance->GetWeight() - massBalance->GetEmptyWeight();
+        double newEmptyWeight = newTotalWeight - curentExcessWeight;
+
+        // make sure that the addition of the new weight does not exceed a standard C172 takeoff weight and empty weights
+        assert(newEmptyWeight < C172_MAX_TAKEOFF_WEIGHT_LBS);
+        assert(newEmptyWeight > C172_MIN_EMPTY_WEIGHT_LBS);
+
+        massBalance->SetEmptyWeight(newEmptyWeight);
+
+        // TODO varying individual point masses
+
+
+        /*
+
+        Goal:
+        
+        {
+            "base-vehicle-weight": 1790.0,
+            "pilot-weight": 190.0,
+            "co-pilot-weight": 140.0,
+            "luggage-weight": 20.0,
+            "tank-1-fuel-weight": 130.0,
+            "tank-0-fuel-weight": 130.0
+        }
+
+        json JSONObject;
+
+        for(auto point : massBalance->PointMasses)
+        {
+            JSONObject[point->GetName()] = point->Weight; // outputs {"CO-PILOT":140.0,"LUGGAGE":20.0,"PILOT":190.0}
+        }
+
+        std::cout << JSONObject.dump() << std::endl;
+
+        */
+
     }
 
     void JSBSim_Interface::writeManeuverConfigurationFromPython(py::object pyObj_maneuverConfigurationPayload)
@@ -133,6 +168,7 @@ namespace tulsa
 
         if(JSONObject.contains("alpha")) {fgic->SetAlphaDegIC(JSONObject.at("alpha").get<double>());}
         if(JSONObject.contains("beta")) {fgic->SetBetaDegIC(JSONObject.at("beta").get<double>());}
+        if(JSONObject.contains("weight")) {setWeightPounds(JSONObject.at("weight").get<double>());}
 
         /* zero winds */
         fgic->SetWindMagKtsIC((double)0.0);

@@ -208,7 +208,7 @@ public:
     bool WOW;
   } in;
 
-private:
+// private:
   std::shared_ptr<FGPropagate> Propagate;
   double Weight;
   double EmptyWeight;
