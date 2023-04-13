@@ -21,7 +21,6 @@ namespace tulsa
         assert(FDM.LoadModel("c172x"));
         autopilot.initialize(&FDM);
 
-        setWeightPounds(2100.0);
         readAircraftState();
 
         if(FDM.GetPropertyValue("propulsion/magneto_cmd") != 1)
@@ -30,51 +29,40 @@ namespace tulsa
         }
 
         autopilot.reenable_engine(&FDM);
-        FDM.RunIC();
-        FDM.Run();
         return;
     }
 
-    void JSBSim_Interface::setWeightPounds(double newTotalWeight)
+    void JSBSim_Interface::configurePointMassStructure(std::string pointMassStructureJSONPayload)
     {
-        std::shared_ptr<JSBSim::FGMassBalance> massBalance = FDM.GetMassBalance();
+        // TODO fix the hard coded string paths everywhere. I actually hate that.
 
-        double curentExcessWeight = massBalance->GetWeight() - massBalance->GetEmptyWeight();
-        double newEmptyWeight = newTotalWeight - curentExcessWeight;
+        std::shared_ptr<JSBSim::FGMassBalance> massBalance = FDM.GetMassBalance(); // get the pointer to the mass balance object
+        std::shared_ptr<JSBSim::FGPropulsion> propulsion = FDM.GetPropulsion(); // get the pointer to the propulsion object
+        json JSONObject = json::parse(pointMassStructureJSONPayload); // parse the payload
 
-        // make sure that the addition of the new weight does not exceed a standard C172 takeoff weight and empty weights
-        assert(newEmptyWeight < C172_MAX_TAKEOFF_WEIGHT_LBS);
-        assert(newEmptyWeight > C172_MIN_EMPTY_WEIGHT_LBS);
+        double newEmptyWeight = JSONObject.at("BASE-VEHICLE").get<double>();
+        assert(newEmptyWeight >= C172_MIN_EMPTY_WEIGHT_LBS);
 
-        massBalance->SetEmptyWeight(newEmptyWeight);
+        massBalance->SetEmptyWeight(newEmptyWeight); // set the empty weight of the aircraft
 
-        // TODO varying individual point masses
-
-
-        /*
-
-        Goal:
-        
-        {
-            "base-vehicle-weight": 1790.0,
-            "pilot-weight": 190.0,
-            "co-pilot-weight": 140.0,
-            "luggage-weight": 20.0,
-            "tank-1-fuel-weight": 130.0,
-            "tank-0-fuel-weight": 130.0
-        }
-
-        json JSONObject;
-
+        // set the "CO-PILOT", "LUGGAGE", and "PILOT" weights automatically
         for(auto point : massBalance->PointMasses)
         {
-            JSONObject[point->GetName()] = point->Weight; // outputs {"CO-PILOT":140.0,"LUGGAGE":20.0,"PILOT":190.0}
+            point->Weight = JSONObject.at(point->GetName()).get<double>();
         }
 
-        std::cout << JSONObject.dump() << std::endl;
+        // configure each of the tanks
+        for(size_t i = 0; i < propulsion->GetNumTanks(); i++)
+        {
+            std::shared_ptr<JSBSim::FGTank> tank = propulsion->GetTank(i);
+            double newTankWeightLbs = JSONObject.at("FUEL-" + std::to_string(i)).get<double>();
+            double tankMaximumCapacityLbs = tank->GetCapacity();
 
-        */
+            assert(newTankWeightLbs <= tankMaximumCapacityLbs);
+            FDM.SetPropertyValue("propulsion/tank[" + std::to_string(i) + "]/contents-lbs", newTankWeightLbs);
+        }
 
+        return;
     }
 
     void JSBSim_Interface::writeManeuverConfigurationFromPython(py::object pyObj_maneuverConfigurationPayload)
@@ -119,13 +107,13 @@ namespace tulsa
         return;
     }
 
-    void JSBSim_Interface::resetAircraftStateFromPython(py::object pyObj_newAircraftStatePayload)
+    void JSBSim_Interface::configureAircraftStateFromPython(py::object pyObj_newAircraftStatePayload)
     {
         std::string newAircraftStatePayload = pyObj_newAircraftStatePayload.cast<std::string>();
-        resetAircraftState(newAircraftStatePayload);
+        configureAircraftState(newAircraftStatePayload);
     }
 
-    void JSBSim_Interface::resetAircraftState(std::string newAircraftStatePayload)
+    void JSBSim_Interface::configureAircraftState(std::string newAircraftStatePayload)
     {
         // overwrite the object's JSON object from the JSON payload
         json JSONObject = json::parse(newAircraftStatePayload);
@@ -168,7 +156,7 @@ namespace tulsa
 
         if(JSONObject.contains("alpha")) {fgic->SetAlphaDegIC(JSONObject.at("alpha").get<double>());}
         if(JSONObject.contains("beta")) {fgic->SetBetaDegIC(JSONObject.at("beta").get<double>());}
-        if(JSONObject.contains("weight")) {setWeightPounds(JSONObject.at("weight").get<double>());}
+        if(JSONObject.contains("weight-configuration")) {configurePointMassStructure(JSONObject.at("weight-configuration").dump());}
 
         /* zero winds */
         fgic->SetWindMagKtsIC((double)0.0);
@@ -183,10 +171,19 @@ namespace tulsa
 
         fgic->SetTrimRequest(autopilot.trimCondition);
 
-        FDM.ResetToInitialConditions(MODE_1);
+        return;
+    }
+
+    void JSBSim_Interface::resetToInitialConditionsFromPython(void)
+    {
+        resetToInitialConditions();
+        return;
+    }
+
+    void JSBSim_Interface::resetToInitialConditions(void)
+    {
         assert(FDM.RunIC());
         runAutoPilot(1);
-        
         return;
     }
 
@@ -520,7 +517,7 @@ int main(int argc, char* argv[])
 
     jsb.initializeJSBSim();
     jsb.writeManeuverConfiguration();
-    jsb.resetAircraftState(jsonObject["JSB"].dump());
+    jsb.configureAircraftState(jsonObject["JSB"].dump());
     jsb.setCommandedManeuver(0);
 
     for(int i = 0; i < 500; i++)
@@ -544,7 +541,8 @@ PYBIND11_MODULE(libJSB_Interface, m)
       .def("writeManeuverConfigurationFromPython", &tulsa::JSBSim_Interface::writeManeuverConfigurationFromPython, "Write a custom version of the maneuve configuration. Usually from EVAA. Accepts a JSON payload.")
       .def("setCommandedManeuverFromPython", &tulsa::JSBSim_Interface::setCommandedManeuverFromPython, "Set the commanded maneuver of the autopilot.")
       .def("runAutoPilotFromPython", &tulsa::JSBSim_Interface::runAutoPilotFromPython, "Run N iterations of the AutoPilot and JSBSim Flight Dynamics.")
-      .def("resetAircraftStateFromPython", &tulsa::JSBSim_Interface::resetAircraftStateFromPython, "Completely reset the aircraft state to new initial conditions. Accepts a JSON payload atune to tu_evaa_gcas/cfg/aircraftState.json.")
+      .def("configureAircraftStateFromPython", &tulsa::JSBSim_Interface::configureAircraftStateFromPython, "Completely reset the aircraft state to new initial conditions. Accepts a JSON payload atune to tu_evaa_gcas/cfg/aircraftState.json.")
       .def("readAircraftStateFromPython", &tulsa::JSBSim_Interface::readAircraftStateFromPython, "Updates the aircraft state's read-only parameters from JSBSim and returns it as a JSON payload.")
-      .def("getExtendedJSBSimStateFromPython", &tulsa::JSBSim_Interface::getExtendedJSBSimStateFromPython, "Get the entire working state of JSBSim as a JSON Payload. This includes ALL property values.");
+      .def("getExtendedJSBSimStateFromPython", &tulsa::JSBSim_Interface::getExtendedJSBSimStateFromPython, "Get the entire working state of JSBSim as a JSON Payload. This includes ALL property values.")
+      .def("resetToInitialConditionsFromPython", &tulsa::JSBSim_Interface::resetToInitialConditionsFromPython, "Resets the aircraft to the specified initial conditions, and runs one iteration of the Autopilot control loop. Only call this method after you have done all configuration for aircraft state and weight.");
 }
