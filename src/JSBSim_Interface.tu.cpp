@@ -132,7 +132,7 @@ namespace tulsa
         JSBSim::FGColumnVector3 vOrient = fgic->GetOrientation().GetEuler();
         if(JSONObject.contains("phiB")) {vOrient(FDM.ePhi) = JSONObject.at("phiB").get<double>() * DEG2RAD;}
         if(JSONObject.contains("thetaB")) {vOrient(FDM.eTht) = JSONObject.at("thetaB").get<double>() * DEG2RAD;}
-        if(JSONObject.contains("phiB")) {vOrient(FDM.ePsi) = JSONObject.at("psiB").get<double>() * DEG2RAD;}
+        if(JSONObject.contains("psiB")) {vOrient(FDM.ePsi) = JSONObject.at("psiB").get<double>() * DEG2RAD;}
 
         // TODO do I need to reset the orientation here?
         // orientation = FGQuaternion(vOrient);

@@ -65,7 +65,6 @@
 
 <!-- ####################################################################### -->
 
-  <property> navigation/actual-heading-rad </property>
   <property> guidance/specified-heading-rad </property>
   <property> guidance/heading-selector-switch </property>
 
