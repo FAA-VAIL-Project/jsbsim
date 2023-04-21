@@ -35,6 +35,7 @@ class JSBSim_Interface
     std::string readAircraftState(void); // get a JSON Payload of the aircraft state variables.
     std::string getExtendedJSBSimState(void); // get the status of every JSBSim flight executive parameter value
     void resetToInitialConditions(void); // run the initial conditions and one iteration of the autopilot control loop
+    void configurePointMassStructure(std::string); // configure the individual point mass structure of the aircraft. Use configureAircraftState with a "weight-configuration" key.
 
     /* Python Methods*/
     void initializeJSBSimFromPython(void);
@@ -45,12 +46,12 @@ class JSBSim_Interface
     py::object readAircraftStateFromPython(void);
     py::object getExtendedJSBSimStateFromPython(void);
     void resetToInitialConditionsFromPython(void);
+    void configurePointMassStructureFromPython(py::object);
 
     private:
     JSBSim::FGFDMExec FDM; // JSBSim flight executive.
     AutoPilot autopilot; // autopilot object, which makes control decisions based on its input.
     nlohmann::json aircraftstateJSONObject; // provides a COPY of the aircraft state. This object only updates when readAircraftState() is called.
-    void configurePointMassStructure(std::string); // configure the individual point mass structure of the aircraft. Use configureAircraftState with a "weight-configuration" key.
 };
 
 } // namespace tulsa

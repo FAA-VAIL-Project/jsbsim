@@ -32,6 +32,13 @@ namespace tulsa
         return;
     }
 
+    void JSBSim_Interface::configurePointMassStructureFromPython(py::object pyObj_pointMassStructureJSONPayload)
+    {
+        std::string pointMassStructureJSONPayload = pyObj_pointMassStructureJSONPayload.cast<std::string>();
+        configurePointMassStructure(pointMassStructureJSONPayload);
+        return;
+    }
+
     void JSBSim_Interface::configurePointMassStructure(std::string pointMassStructureJSONPayload)
     {
         // TODO fix the hard coded string paths everywhere. I actually hate that.
@@ -129,14 +136,10 @@ namespace tulsa
         if(JSONObject.contains("lat")) {fgic->SetLatitudeDegIC(JSONObject.at("lat").get<double>());}
 
         /* orientation */
-        JSBSim::FGColumnVector3 vOrient = fgic->GetOrientation().GetEuler();
-        if(JSONObject.contains("phiB")) {vOrient(FDM.ePhi) = JSONObject.at("phiB").get<double>() * DEG2RAD;}
-        if(JSONObject.contains("thetaB")) {vOrient(FDM.eTht) = JSONObject.at("thetaB").get<double>() * DEG2RAD;}
-        if(JSONObject.contains("psiB")) {vOrient(FDM.ePsi) = JSONObject.at("psiB").get<double>() * DEG2RAD;}
-
-        // TODO do I need to reset the orientation here?
-        // orientation = FGQuaternion(vOrient);
-
+        if(JSONObject.contains("phiB")) {FDM.SetPropertyValue("attitude/phi-rad", JSONObject.at("phiB").get<double>() * DEG2RAD);}
+        if(JSONObject.contains("thetaB")) {FDM.SetPropertyValue("attitude/theta-rad", JSONObject.at("thetaB").get<double>() * DEG2RAD);}
+        if(JSONObject.contains("psiB")) {FDM.SetPropertyValue("attitude/psi-rad", JSONObject.at("psiB").get<double>() * DEG2RAD);}
+  
         if(JSONObject.contains("uB")) {fgic->SetUBodyFpsIC(JSONObject.at("uB").get<double>());}
         if(JSONObject.contains("vB")) {fgic->SetVBodyFpsIC(JSONObject.at("vB").get<double>());}
         if(JSONObject.contains("wB")) {fgic->SetWBodyFpsIC(JSONObject.at("wB").get<double>());}
@@ -544,5 +547,6 @@ PYBIND11_MODULE(libJSB_Interface, m)
       .def("configureAircraftStateFromPython", &tulsa::JSBSim_Interface::configureAircraftStateFromPython, "Completely reset the aircraft state to new initial conditions. Accepts a JSON payload atune to tu_evaa_gcas/cfg/aircraftState.json.")
       .def("readAircraftStateFromPython", &tulsa::JSBSim_Interface::readAircraftStateFromPython, "Updates the aircraft state's read-only parameters from JSBSim and returns it as a JSON payload.")
       .def("getExtendedJSBSimStateFromPython", &tulsa::JSBSim_Interface::getExtendedJSBSimStateFromPython, "Get the entire working state of JSBSim as a JSON Payload. This includes ALL property values.")
-      .def("resetToInitialConditionsFromPython", &tulsa::JSBSim_Interface::resetToInitialConditionsFromPython, "Resets the aircraft to the specified initial conditions, and runs one iteration of the Autopilot control loop. Only call this method after you have done all configuration for aircraft state and weight.");
+      .def("resetToInitialConditionsFromPython", &tulsa::JSBSim_Interface::resetToInitialConditionsFromPython, "Resets the aircraft to the specified initial conditions, and runs one iteration of the Autopilot control loop. Only call this method after you have done all configuration for aircraft state and weight.")
+      .def("configurePointMassStructureFromPython", &tulsa::JSBSim_Interface::configurePointMassStructureFromPython, "Pass in a JSON Payload of the point mass configuration.");
 }
